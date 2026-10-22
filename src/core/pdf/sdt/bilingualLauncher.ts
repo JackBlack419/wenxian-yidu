@@ -90,6 +90,34 @@ export function getActiveBilingualModeForItem(
   }
 }
 
+/**
+ * Wait until the reader exposes the SDT reading-mode entry points.
+ *
+ * The item-tree flow resolves the reader the moment Zotero registers the tab —
+ * which is BEFORE the reader iframe finishes loading, so `_internalReader`
+ * (and with it `_setReadingMode` / `_loadSDT`) is still absent. Entering then
+ * fails with "SDT mode API not present" and the item-tree path used to swallow
+ * that silently: the user saw the plain reader open and nothing else. Poll
+ * briefly for the entry points instead; readers that will never have them
+ * (Zotero 7) simply wait out the budget once and then fail fast with the
+ * normal capability disclosure.
+ */
+async function waitForReaderSdtEntry(reader: any, timeoutMs = 10000): Promise<void> {
+  const start = Date.now();
+  for (;;) {
+    const probe = (reader as any)?._internalReader ?? reader;
+    const raw: any = probe?.wrappedJSObject ?? probe;
+    if (
+      typeof raw?._setReadingMode === "function" &&
+      typeof raw?._loadSDT === "function"
+    ) {
+      return;
+    }
+    if (Date.now() - start >= timeoutMs) return;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
 export async function startBilingualSession(options: {
   reader: any;
   itemID?: number;
@@ -126,6 +154,8 @@ export async function startBilingualSession(options: {
   }
 
   noteEngineError(null);
+
+  await waitForReaderSdtEntry(reader);
 
   const session = await enterBilingualSession(reader);
   if (!session) {

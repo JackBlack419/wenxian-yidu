@@ -1069,7 +1069,10 @@ async function launchBilingualFromReader(reader: any, mode: "interleave" | "tran
   if (_bilingualMenuBusy) return;
   _bilingualMenuBusy = true;
   try {
-    const itemID = reader?.itemID;
+    // Resolve via the selected tab like every other reader entry: a stale
+    // closure reader (or an Xray-hidden itemID) reads as undefined and the
+    // flow would bail with a misleading "no reader" alert.
+    const itemID = getCurrentReaderItemID(reader);
     if (!itemID) {
       alertDialog(
         getString("app-title"),

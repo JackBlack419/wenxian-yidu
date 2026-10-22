@@ -51,6 +51,15 @@ export interface LazyQueueOptions {
   /** Look-ahead margin for the observer, e.g. "120% 0px". */
   rootMargin?: string;
   signal?: AbortSignal;
+  /**
+   * The window that owns the geometry-poll timer. Callers MUST pass the
+   * chrome (main) window: a chrome closure registered on the SDT iframe's
+   * content window is a content-realm timer running privileged code — on
+   * Zotero 10.0.6 that combination hard-crashes xul.dll within about a
+   * minute (exception 0x80000003, reproducible; real-machine QA 2026-10-22).
+   * A chrome-window timer reading content geometry is the safe shape.
+   */
+  timerWindow?: any;
 }
 
 interface InternalItem {
@@ -97,7 +106,10 @@ export class LazyTranslateQueue {
     for (const [refPath, entry] of this.entries) {
       entry.placeholder.setAttribute("data-ref-path", refPath);
     }
-    const view = this.doc.defaultView as any;
+    // Chrome window first (see timerWindow), content view as the test/host
+    // fallback. Never register a chrome closure on the content window.
+    const view =
+      this.options.timerWindow ?? (this.doc.defaultView as any);
     const tick = view?.setInterval as ((fn: any, ms: number) => number) | undefined;
     if (typeof tick !== "function") {
       // Host without timers (tests): translate everything immediately.
@@ -112,7 +124,25 @@ export class LazyTranslateQueue {
   private poll(): void {
     if (this.stopped) return;
     try {
+      // The SDT view can be torn down under us (reader tab closed, reading
+      // mode exited elsewhere). Placeholders disconnect with the document —
+      // stop instead of spinning on dead nodes forever.
       const view = this.doc.defaultView;
+      if (view?.closed) {
+        this.stop();
+        return;
+      }
+      let anyConnected = false;
+      for (const entry of this.entries.values()) {
+        if (entry.placeholder.isConnected) {
+          anyConnected = true;
+          break;
+        }
+      }
+      if (!anyConnected) {
+        this.stop();
+        return;
+      }
       const viewportH = Number(view?.innerHeight) || 800;
       let topCandidate: { refPath: string; top: number } | null = null;
       for (const [refPath, entry] of this.entries) {
@@ -158,7 +188,8 @@ export class LazyTranslateQueue {
   stop(): void {
     this.stopped = true;
     try {
-      const view = this.doc.defaultView as any;
+      const view =
+        this.options.timerWindow ?? (this.doc.defaultView as any);
       if (this.pollTimer != null && typeof view?.clearInterval === "function") {
         view.clearInterval(this.pollTimer);
       }

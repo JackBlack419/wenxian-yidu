@@ -3,6 +3,27 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.12.1] - 2026-10-22
+
+### Fixed
+
+- The bilingual reading entries (「上下翻译」/「仅译文」) no longer crash
+  Zotero. The interleave view's geometry poll ran on a timer registered on
+  the SDT iframe's content window with a chrome-privileged callback; on
+  Zotero 10.0.6 that combination aborted xul.dll (exception 0x80000003)
+  50-70 seconds after every bilingual session start — 100% reproducible on
+  the real-machine harness, absent without the flow. The poll timer now
+  lives on the chrome main window, and the queue stops itself once the SDT
+  view is torn down (reader tab closed) instead of spinning on dead nodes.
+- The item-tree bilingual entries no longer fail silently. Starting a
+  session now waits (up to 10 s) for the freshly opened reader to expose its
+  SDT entry points — previously a slow reader open raced the session start
+  and the flow gave up invisibly, leaving just the plain PDF reader. The
+  library menu items now also show progress while preparing, a completion
+  line, and the document-structure disclosure / error text on failure
+  instead of an unhandled rejection; the reader-menu entries resolve the
+  current item through the selected tab like every other flow.
+
 ## [1.12.0] - 2026-10-22
 
 ### Fixed

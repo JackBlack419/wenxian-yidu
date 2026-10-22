@@ -365,36 +365,87 @@ function injectIntoWindow(win: any): boolean {
         void runPipelines(win, resolveAllSourcePdfAttachments(items), "split");
       },
     );
+    // Bilingual launch with visible feedback: the reader-menu path shows a
+    // progress window, and this path used to run SILENTLY — a reader that
+    // wasn't ready, an SDT view that failed to build or an engine error all
+    // left nothing but the freshly opened plain reader (the user-facing
+    // symptom of issue "双语菜单只是打开了阅读器"). Mirror the reader path:
+    // progress while preparing, done/failed lines, and a disclosure message
+    // when the document-structure session can't be established at all.
+    const runBilingual = async (mode: "interleave" | "transOnly"): Promise<void> => {
+      const Zotero = (globalThis as any).Zotero;
+      const zp = win.ZoteroPane || win.wrappedJSObject?.ZoteroPane;
+      const progress = new Zotero.ProgressWindow({ window: win });
+      progress.changeHeadline(getString("app-title"));
+      progress.addDescription(getString("itemtree-launch-progress"));
+      progress.show();
+      try {
+        const source = resolveSourcePdfAttachment(
+          zp?.itemsView?.getSelectedItems?.() || [],
+        );
+        if (!source) {
+          progress.startCloseTimer?.(2000);
+          return;
+        }
+        const handle = await startBilingualSessionByItemID({
+          win,
+          itemID: source.id,
+          mode,
+          onProgress: (stats) => {
+            try {
+              progress.addDescription(
+                getString("bilingual-progress", {
+                  done: stats.done,
+                  total: stats.total,
+                }),
+              );
+              progress.show();
+            } catch {
+              /* progress window closed */
+            }
+          },
+        });
+        if (!handle) {
+          progress.addDescription(getString("bilingual-sdt-missing"));
+          progress.startCloseTimer?.(8000);
+          return;
+        }
+        progress.addDescription(getString("itemtree-launch-done"));
+        progress.startCloseTimer?.(3000);
+      } catch (e) {
+        safeDebug(`[Z-Transplit] itemTreeMenu bilingual (${mode}) failed: ${e}`);
+        try {
+          progress.addDescription("✗ " + toErrorMessage(e));
+          progress.startCloseTimer?.(8000);
+        } catch {
+          /* progress window already closed */
+        }
+      }
+    };
     const interleaveItem = mkItem(
       "ztransplit-itemmenu-interleave",
       "itemtree-interleave",
       async () => {
-        const zp = win.ZoteroPane || win.wrappedJSObject?.ZoteroPane;
-        const items: any[] = zp?.itemsView?.getSelectedItems?.() || [];
-        const source = resolveSourcePdfAttachment(items);
+        const source = resolveSourcePdfAttachment(
+          (win.ZoteroPane || win.wrappedJSObject?.ZoteroPane)?.itemsView
+            ?.getSelectedItems?.() || [],
+        );
         if (!source) return;
-        await openAttachmentOrAlert(win, source.id);
-        await startBilingualSessionByItemID({
-          win,
-          itemID: source.id,
-          mode: "interleave",
-        });
+        openAttachmentOrAlert(win, source.id);
+        await runBilingual("interleave");
       },
     );
     const transOnlyItem = mkItem(
       "ztransplit-itemmenu-trans-only",
       "itemtree-trans-only",
       async () => {
-        const zp = win.ZoteroPane || win.wrappedJSObject?.ZoteroPane;
-        const items: any[] = zp?.itemsView?.getSelectedItems?.() || [];
-        const source = resolveSourcePdfAttachment(items);
+        const source = resolveSourcePdfAttachment(
+          (win.ZoteroPane || win.wrappedJSObject?.ZoteroPane)?.itemsView
+            ?.getSelectedItems?.() || [],
+        );
         if (!source) return;
-        await openAttachmentOrAlert(win, source.id);
-        await startBilingualSessionByItemID({
-          win,
-          itemID: source.id,
-          mode: "transOnly",
-        });
+        openAttachmentOrAlert(win, source.id);
+        await runBilingual("transOnly");
       },
     );
 

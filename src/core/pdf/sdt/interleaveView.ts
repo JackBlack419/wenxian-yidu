@@ -357,7 +357,15 @@ export async function buildInterleave(
       onFailed: renderError,
       onProgress: (stats) => options.onProgress?.(stats),
     },
-    { concurrency, signal: options.signal },
+    {
+      concurrency,
+      signal: options.signal,
+      // The poll timer MUST live on a chrome window — a chrome closure
+      // registered on the SDT iframe's content window crashes xul.dll within
+      // about a minute (see lazyQueue timerWindow). Node/tests have no Zotero
+      // global and fall back to the content view or the no-timer path.
+      timerWindow: (globalThis as any).Zotero?.getMainWindow?.() ?? null,
+    },
   );
   queue.start();
 
