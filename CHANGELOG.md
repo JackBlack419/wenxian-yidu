@@ -3,6 +3,21 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.12.0] - 2026-10-22
+
+### Fixed
+
+- Windows: PDF filenames or directory names containing non-ASCII characters
+  (Chinese, Japanese, Korean, Cyrillic, etc.) no longer cause "Process failed
+  to launch" errors during split-screen translation. The Windows process
+  launcher now uses Zotero's `Subprocess.sys.mjs` (backed by `CreateProcessW`)
+  to start Java directly with a raw Unicode argv, instead of writing a UTF-8
+  `.bat` file that a CP936/CP932 console code page would mis-decode. The JVM
+  is additionally pinned to UTF-8 stdio (`-Dfile.encoding=UTF-8`,
+  `-Dstdout.encoding=UTF-8`, `-Dstderr.encoding=UTF-8`), and non-zero exits
+  now surface the real exit code plus captured stdout/stderr instead of a
+  generic launch-failure message.
+
 ## [1.11.0] - 2026-10-16
 
 ### Changed
