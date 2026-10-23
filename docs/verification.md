@@ -10,6 +10,8 @@
 
 中英文README、HTML语言往返切换、英文直达URL、四种模式与键盘切换已验证。ZIP的页面/六张截图、单文件HTML通过链接、内嵌资源和SHA-256校验；正式XPI不含探针。
 
+公开发布后，五个Releases附件已逐一下载并与本地SHA-256一致；XPI为5,222,061字节，SHA-256为 `8f98e823477fd1c7f2951e15ad83808bd821e0153b71efc92f0e86c29f7d91e4`。GitHub Pages中英文提示已实页检查；收录申请为 [#329](https://github.com/zotero-chinese/zotero-plugins/issues/329)，待审核。
+
 ## 桌面走查
 
 - 本次重新使用真实MTranServer5.0.1：连接试译通过，输入的两个句段得到中文结果；对照段落、对照选区和全文分屏生成可见。截图均来自 `docs/images/`，没有使用故障注入或“测试译文”替身。

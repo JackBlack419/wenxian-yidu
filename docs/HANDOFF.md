@@ -32,6 +32,7 @@
 
 - 主文档：README、用户手册、接口配置、开发、限制、验证、第三方说明；一份修改记录。
 - 仓库：https://github.com/JackBlack419/wenxian-yidu；网页：https://jackblack419.github.io/wenxian-yidu/。
+- 0.2.5已在GitHub Releases发布；插件合集收录申请：[zotero-plugins #329](https://github.com/zotero-chinese/zotero-plugins/issues/329)，等待维护者审核，不等于已经上架。
 - dist由打包脚本生成XPI、单文件HTML、网页ZIP、更新清单与SHA-256，通过Releases分发；源码和产物分开。
 - 旧报告、重复截图、原型及旧包移入本地.local-archive，不公开；Git历史、许可与溯源保留。
 - 请求成功不等于语义准确；没有真实凭据的服务不声称完成联网验收。
