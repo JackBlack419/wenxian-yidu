@@ -191,20 +191,24 @@ describe("B16 阅读器翻译面板：选区与自动翻译", () => {
 
   it("auto=true：挂载即自动翻译（fetch 打到 custom 端点）", async () => {
     ctx = setup({ ...ENGINE_PREFS, "translate.auto": true }, ["hello"]);
-    routeOK(ctx.fm);
+    // A dispatched request is not a rendered result: keep the response pending
+    // long enough to exercise the async completion boundary deterministically.
+    ctx.fm.route("http://127.0.0.1:1/**").replySequence([{
+      status: 200,
+      body: { choices: [{ message: { content: "译文" } }] },
+      delayMs: 100,
+    }]);
     mountTranslatePane({ doc: ctx.doc, body: ctx.body });
 
-    // Auto-translation runs at mount time and must survive parallel-suite timing:
-    // wait for the actual fetch (lazy module import + cacheKey + network) instead
-    // of a single fixed tick.
-    const deadline = Date.now() + 2000;
-    while (ctx.fm.calls.length === 0 && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-
+    // Wait for the user-visible result, not merely request dispatch. The
+    // response, cache write and DOM render can still be pending after fetch starts.
+    await expect.poll(
+      () => ctx.doc.querySelector(".wenxianyidu-tp-result-text")?.textContent,
+      { timeout: 5000, interval: 20 },
+    ).toBe("译文");
     expect(ctx.fm.calls.length).toBe(1);
     expect(ctx.fm.calls[0].url).toContain("127.0.0.1");
-    expect(ctx.text(ctx.body)).toContain("译文");
+    expect(ctx.buttons(K.copy).length).toBe(1);
   });
 
   it("点击「翻译」发起请求，成功渲染译文与复制按钮", async () => {
@@ -488,7 +492,9 @@ describe("B16 阅读器翻译面板：失败显式披露（失败≠空）", () 
     routeOK(ctx.fm, "   ");
     mountTranslatePane({ doc: ctx.doc, body: ctx.body });
     ctx.click(K.action);
-    await flush();
+    await expect.poll(() => ctx.buttons(K.retry).length, {
+      timeout: 5000, interval: 20,
+    }).toBe(1);
     // Empty responses may now be rejected in the shared engine before the UI
     // receives a string. Either path must render an explicit error and retry.
     expect(ctx.doc.querySelector(".wenxianyidu-tp-error")).not.toBeNull();
