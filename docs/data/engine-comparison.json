@@ -1,0 +1,507 @@
+{
+  "date": "2026-10-23",
+  "pluginVersion": "0.2.5",
+  "environment": {
+    "os": "Windows x64",
+    "zotero": "10.0.6",
+    "cpu": "Intel Core i5-14600KF",
+    "offline": "MTranServer npm 5.0.1, prepared English-to-Simplified-Chinese model"
+  },
+  "method": "Same 60 synthetic CC0 English scientific sentences; product translateSegments queue; en to zh-CN. Connection tests and a first request warmed both engines. Generic memory and persistent translation caches disabled for withoutCache. Existing cache reused for cacheHit. Excludes initial downloads, PDF parsing/layout and full cold startup. Single run, not an independent or blinded quality evaluation.",
+  "corpusVersion": 2,
+  "corpusSha256": "cacefa82309501551e027fe7b8042c9938ae6f20a726a996e58242eb60a28032",
+  "timingMs": {
+    "bing-web": {
+      "withoutCache": 21367,
+      "cacheHit": 19,
+      "successfulRequests": 60
+    },
+    "mtranserver": {
+      "withoutCache": 1271,
+      "cacheHit": 32,
+      "successfulRequests": 60
+    }
+  },
+  "cases": [
+    {
+      "id": "1",
+      "category": "terms",
+      "text": "The randomized controlled experiment included 240 samples.",
+      "referenceZh": "随机对照实验包括240个样本。",
+      "bing": "这项随机对照实验包括240个样本。",
+      "mtran": "随机对照实验包含240个样本。"
+    },
+    {
+      "id": "2",
+      "category": "terms",
+      "text": "The confidence interval is wide because the sample is small.",
+      "referenceZh": "置信区间宽，因为样本小。",
+      "bing": "置信区间很宽，因为样本很小。",
+      "mtran": "置信区间较宽，因为样本量较小。"
+    },
+    {
+      "id": "3",
+      "category": "terms",
+      "text": "We used a watershed model to estimate river discharge.",
+      "referenceZh": "我们使用流域模型估计河流流量。",
+      "bing": "我们使用了流域模型来估算河流流量。",
+      "mtran": "我们使用一个分水岭模型来估算河流排放情况。"
+    },
+    {
+      "id": "4",
+      "category": "terms",
+      "text": "The false negative rate decreased after calibration.",
+      "referenceZh": "校准后假阴性率降低。",
+      "bing": "校准后假阴性率下降了。",
+      "mtran": "校准后，假阴率下降。"
+    },
+    {
+      "id": "5",
+      "category": "terms",
+      "text": "The attention mechanism assigns different weights to input tokens.",
+      "referenceZh": "注意力机制为输入词元赋予不同权重。",
+      "bing": "注意力机制为输入的各个标记分配不同的权重。",
+      "mtran": "注意力机制为输入令牌分配不同的权重。"
+    },
+    {
+      "id": "6",
+      "category": "terms",
+      "text": "The Hessian matrix describes local curvature.",
+      "referenceZh": "海森矩阵描述局部曲率。",
+      "bing": "Hessian矩阵描述局部曲率。",
+      "mtran": "赫西安矩阵描述了局部曲率。"
+    },
+    {
+      "id": "7",
+      "category": "terms",
+      "text": "A blinded evaluator measured inter-rater agreement.",
+      "referenceZh": "不知分组的评估者测量了评估者间一致性。",
+      "bing": "一名盲法评估者测量了评分者之间的一致性。",
+      "mtran": "一位失明的评估员衡量了利率区间协议。"
+    },
+    {
+      "id": "8",
+      "category": "terms",
+      "text": "The ablation study isolates the contribution of each component.",
+      "referenceZh": "消融研究分离了每个组件的贡献。",
+      "bing": "消融研究孤立了每个组件的贡献。",
+      "mtran": "消融研究会将每个成分的贡献分开。"
+    },
+    {
+      "id": "9",
+      "category": "terms",
+      "text": "The null hypothesis was specified before data collection.",
+      "referenceZh": "零假设在收集数据前已指定。",
+      "bing": "零假设是在数据收集之前指定的。",
+      "mtran": "在数据收集之前，已指定了零假设。"
+    },
+    {
+      "id": "10",
+      "category": "terms",
+      "text": "The gradient vanishes near the stationary point.",
+      "referenceZh": "梯度在驻点附近消失。",
+      "bing": "梯度在驻点附近消失。",
+      "mtran": "梯度在静止点附近消失。"
+    },
+    {
+      "id": "11",
+      "category": "negation",
+      "text": "The results do not support the hypothesis.",
+      "referenceZh": "结果不支持该假设。",
+      "bing": "结果不支持假设。",
+      "mtran": "结果不支持这一假设。"
+    },
+    {
+      "id": "12",
+      "category": "negation",
+      "text": "No statistically significant difference was observed.",
+      "referenceZh": "未观察到统计显著差异。",
+      "bing": "未观察到统计学显著差异。",
+      "mtran": "未观察到统计学上显著的差异。"
+    },
+    {
+      "id": "13",
+      "category": "negation",
+      "text": "The absence of evidence is not evidence of absence.",
+      "referenceZh": "缺乏证据并非不存在的证据。",
+      "bing": "缺乏证据并不等于证据的缺失。",
+      "mtran": "缺乏证据并不能证明其缺失。"
+    },
+    {
+      "id": "14",
+      "category": "negation",
+      "text": "The method is not insensitive to measurement noise.",
+      "referenceZh": "该方法并非对测量噪声不敏感。",
+      "bing": "该方法并不对测量噪声不敏感。",
+      "mtran": "该方法对测量噪声不敏感。"
+    },
+    {
+      "id": "15",
+      "category": "negation",
+      "text": "Neither method eliminated the bias.",
+      "referenceZh": "两种方法均未消除偏差。",
+      "bing": "两种方法都没有消除偏差。",
+      "mtran": "两种方法均未消除偏差。"
+    },
+    {
+      "id": "16",
+      "category": "negation",
+      "text": "The association does not imply causation.",
+      "referenceZh": "该关联并不意味着因果关系。",
+      "bing": "关联不意味着因果关系。",
+      "mtran": "该协会不表示因果关系。"
+    },
+    {
+      "id": "17",
+      "category": "negation",
+      "text": "We cannot rule out an effect smaller than 1 percent.",
+      "referenceZh": "我们不能排除小于百分之一的效应。",
+      "bing": "我们不能排除小于1%的影响。",
+      "mtran": "我们不能排除小于1%的效果。"
+    },
+    {
+      "id": "18",
+      "category": "negation",
+      "text": "Not all observations were independent.",
+      "referenceZh": "并非所有观测都相互独立。",
+      "bing": "并非所有观察都是独立的。",
+      "mtran": "并非所有观察结果都是独立的。"
+    },
+    {
+      "id": "19",
+      "category": "negation",
+      "text": "The model failed to detect the change, not to predict its direction.",
+      "referenceZh": "模型未能检测变化，而非未能预测变化方向。",
+      "bing": "模型未能检测到变化，而不是未能预测其方向。",
+      "mtran": "该模型未能检测到变化，无法预测其方向。"
+    },
+    {
+      "id": "20",
+      "category": "negation",
+      "text": "The control group received neither intervention nor feedback.",
+      "referenceZh": "对照组既未接受干预也未接受反馈。",
+      "bing": "对照组既没有接受干预也没有收到反馈。",
+      "mtran": "对照组未收到任何干预或反馈。"
+    },
+    {
+      "id": "21",
+      "category": "units",
+      "text": "The temperature increased from 20 °C to 25 °C.",
+      "referenceZh": "温度从20摄氏度升至25摄氏度。",
+      "bing": "温度从20°C升高到25°C。",
+      "mtran": "温度从20°C升高到25°C。"
+    },
+    {
+      "id": "22",
+      "category": "units",
+      "text": "The sample was heated at 5 K per minute for 12 minutes.",
+      "referenceZh": "样本以每分钟5K的速率加热12分钟。",
+      "bing": "样品以每分钟5 K的速度加热12分钟。",
+      "mtran": "样品以每分钟5公里的速度加热12分钟。"
+    },
+    {
+      "id": "23",
+      "category": "units",
+      "text": "The sensor consumed 3.2 mW at a voltage of 1.8 V.",
+      "referenceZh": "传感器在1.8V电压下消耗3.2mW。",
+      "bing": "传感器在1.8伏电压下消耗了3.2毫瓦。",
+      "mtran": "传感器在1.8伏电压下消耗了3.2兆瓦。"
+    },
+    {
+      "id": "24",
+      "category": "units",
+      "text": "The error decreased by 12 percent, from 0.50 to 0.44.",
+      "referenceZh": "误差降低百分之十二，从0.50降至0.44。",
+      "bing": "错误减少了12%，从0.50降至0.44。",
+      "mtran": "误差从0.50下降至0.44，下降了12%。"
+    },
+    {
+      "id": "25",
+      "category": "units",
+      "text": "The increase was 5 percentage points rather than 5 percent.",
+      "referenceZh": "增幅为5个百分点，而非百分之五。",
+      "bing": "增长了5个百分点，而不是5%。",
+      "mtran": "增幅为5个百分点，而非5%。"
+    },
+    {
+      "id": "26",
+      "category": "units",
+      "text": "The median latency was 8 ms and the maximum was 37 ms.",
+      "referenceZh": "延迟中位数8ms，最大值37ms。",
+      "bing": "中位延迟为8毫秒，最大延迟为37毫秒。",
+      "mtran": "中位延迟为8毫秒，最大值为37毫秒。"
+    },
+    {
+      "id": "27",
+      "category": "units",
+      "text": "The concentration was 0.25 mol/L in a volume of 10 mL.",
+      "referenceZh": "浓度0.25mol/L，体积10mL。",
+      "bing": "浓度为0.25摩尔/升，体积为10毫升。",
+      "mtran": "浓度为0.25摩尔/升，体积为10毫升。"
+    },
+    {
+      "id": "28",
+      "category": "units",
+      "text": "The pressure remained below 2.0 kPa throughout the test.",
+      "referenceZh": "整个测试中压力保持低于2.0kPa。",
+      "bing": "在整个测试过程中，压力保持在2.0 kPa以下。",
+      "mtran": "在整个测试过程中压力仍低于2.0 kPa。"
+    },
+    {
+      "id": "29",
+      "category": "units",
+      "text": "The interval ranged from −0.8 to 1.2 units.",
+      "referenceZh": "区间为负0.8至1.2单位。",
+      "bing": "该区间的范围从−0.8到1.2单位。",
+      "mtran": "间隔范围为−0.8至1.2个单位。"
+    },
+    {
+      "id": "30",
+      "category": "units",
+      "text": "The ratio was 1:4, corresponding to 20 percent of the total.",
+      "referenceZh": "比值为1:4，对应总量的百分之二十。",
+      "bing": "比例是1:4，占总数的20%。",
+      "mtran": "比值为1:4，占总数的20%。"
+    },
+    {
+      "id": "31",
+      "category": "formula",
+      "text": "The energy is given by $E=mc^2$ for the stated mass.",
+      "referenceZh": "能量由公式给出。",
+      "bing": "所述质量的能量由 $E=mc^2$ 给出。",
+      "mtran": "能量由$E=mc^2$为所述质量提供。"
+    },
+    {
+      "id": "32",
+      "category": "formula",
+      "text": "When $x>0$, the function $f(x)=\\log x$ is increasing.",
+      "referenceZh": "当x大于零时该函数递增。",
+      "bing": "当 $x>0$ 时，函数 $f(x)=\\log x$ 在增加。",
+      "mtran": "当$x>0$功能$f(x)=\\log x$增加时。"
+    },
+    {
+      "id": "33",
+      "category": "formula",
+      "text": "The gradient $\\nabla f$ and the Hessian $H$ are computed separately.",
+      "referenceZh": "梯度和海森矩阵分别计算。",
+      "bing": "梯度 $\\nabla f$ 和 Hessian 矩阵 $H$ 是分别计算的。",
+      "mtran": "梯度 $\\nabla f$ 和 Hessian $H$ 是单独计算的。"
+    },
+    {
+      "id": "34",
+      "category": "formula",
+      "text": "The bound $\\epsilon<0.01$ holds only if the samples are independent.",
+      "referenceZh": "只有样本独立时该界才成立。",
+      "bing": "只有在样本独立的情况下，界 $\\epsilon<0.01$ 才成立。",
+      "mtran": "限定 $\\epsilon<0.01$ 仅在样品独立时才能保持。"
+    },
+    {
+      "id": "35",
+      "category": "formula",
+      "text": "We minimize $L=\\sum_i (y_i-\\hat y_i)^2$ over the parameters.",
+      "referenceZh": "我们对参数最小化该损失。",
+      "bing": "我们在参数上最小化 $L=\\sum_i (y_i-\\hat y_i)^2$。",
+      "mtran": "我们在参数上最小化 $L=\\sum_i (y_i-\\hat y_i)^2$。"
+    },
+    {
+      "id": "36",
+      "category": "formula",
+      "text": "The probability $P(A\\mid B)$ differs from $P(B\\mid A)$.",
+      "referenceZh": "两个条件概率不同。",
+      "bing": "概率 $P(A\\mid B)$ 与 $P(B\\mid A)$ 不同。",
+      "mtran": "$P(A\\mid B)$ 的概率与 $P(B\\mid A)$ 不同。"
+    },
+    {
+      "id": "37",
+      "category": "formula",
+      "text": "The parameter {v0} is fixed while {v1} is optimized.",
+      "referenceZh": "一个参数固定，另一个被优化。",
+      "bing": "参数 {v0} 是固定的，而 {v1} 是优化的。",
+      "mtran": "参数 {v0} 已修复，同时优化了 {v1}。"
+    },
+    {
+      "id": "38",
+      "category": "formula",
+      "text": "The integral $\\int_0^1 x^2 dx$ remains unchanged.",
+      "referenceZh": "该积分保持不变。",
+      "bing": "积分 $\\int_0^1 x^2 dx$ 保持不变。",
+      "mtran": "整体$\\int_0^1 x^2 dx$保持不变。"
+    },
+    {
+      "id": "39",
+      "category": "formula",
+      "text": "The inequality $a\\leq b$ does not imply $a=b$.",
+      "referenceZh": "小于等于不意味着相等。",
+      "bing": "不等式 $a\\leq b$ 并不意味着 $a=b$。",
+      "mtran": "这种不平等 $a\\leq b$ 并不代表$a=b$。"
+    },
+    {
+      "id": "40",
+      "category": "formula",
+      "text": "For $n=10^3$, the complexity is $O(n\\log n)$.",
+      "referenceZh": "该n下复杂度由公式表示。",
+      "bing": "对于 $n=10^3$，复杂性是 $O(n\\log n)$。",
+      "mtran": "对于$n=10^3$，复杂性为$O(n\\log n)$。"
+    },
+    {
+      "id": "41",
+      "category": "logic",
+      "text": "If the threshold is exceeded, the controller stops the experiment.",
+      "referenceZh": "若超过阈值，控制器停止实验。",
+      "bing": "如果超过阈值，控制器会停止实验。",
+      "mtran": "如果超过阈值，控制器将停止实验。"
+    },
+    {
+      "id": "42",
+      "category": "logic",
+      "text": "The estimate is unbiased only if the sampling procedure is random.",
+      "referenceZh": "只有采样随机时估计才无偏。",
+      "bing": "只有当抽样程序是随机时，估计才是无偏的。",
+      "mtran": "只有抽样过程为随机时，估算值才具有不偏。"
+    },
+    {
+      "id": "43",
+      "category": "logic",
+      "text": "Although accuracy improved, computational cost doubled.",
+      "referenceZh": "尽管准确率提高，计算成本翻倍。",
+      "bing": "虽然准确性提高了，但计算成本翻了一番。",
+      "mtran": "尽管准确性有所提高，计算成本却翻了一番。"
+    },
+    {
+      "id": "44",
+      "category": "logic",
+      "text": "The effect persisted unless the temperature exceeded 50 °C.",
+      "referenceZh": "除非温度超过50摄氏度，否则效应持续。",
+      "bing": "除非温度超过50°C，否则该效果持续存在。",
+      "mtran": "除非温度超过50°C，否则效果会持续。"
+    },
+    {
+      "id": "45",
+      "category": "logic",
+      "text": "A larger sample reduces uncertainty but does not remove systematic bias.",
+      "referenceZh": "更大样本降低不确定性但不消除系统偏差。",
+      "bing": "较大的样本可以减少不确定性，但无法消除系统偏差。",
+      "mtran": "更大的样本能减少不确定性，但无法消除系统性偏差。"
+    },
+    {
+      "id": "46",
+      "category": "logic",
+      "text": "The result is sufficient but not necessary for convergence.",
+      "referenceZh": "该结果为收敛的充分非必要条件。",
+      "bing": "这个结果对于收敛是充分的，但不是必要的。",
+      "mtran": "结果足够，但并非实现趋同所必需的。"
+    },
+    {
+      "id": "47",
+      "category": "logic",
+      "text": "We excluded samples collected after the instrument failed.",
+      "referenceZh": "我们排除了仪器故障后采集的样本。",
+      "bing": "我们排除了仪器故障后收集的样本。",
+      "mtran": "我们排除了仪器失效后采集的样本。"
+    },
+    {
+      "id": "48",
+      "category": "logic",
+      "text": "The method generalizes provided that the input distribution remains stable.",
+      "referenceZh": "只要输入分布稳定，该方法就可泛化。",
+      "bing": "只要输入分布保持稳定，该方法就可以推广。",
+      "mtran": "该方法的通用性规定了输入分布保持稳定。"
+    },
+    {
+      "id": "49",
+      "category": "logic",
+      "text": "Doubling the input did not double the output.",
+      "referenceZh": "输入翻倍并未使输出翻倍。",
+      "bing": "将输入加倍并没有使输出加倍。",
+      "mtran": "输入加倍没有使输出翻倍。"
+    },
+    {
+      "id": "50",
+      "category": "logic",
+      "text": "The improvement may reflect selection bias rather than a causal effect.",
+      "referenceZh": "改善可能反映选择偏差而非因果效应。",
+      "bing": "这种改善可能反映的是选择偏差，而不是因果效应。",
+      "mtran": "改进可能反映出选择偏差，而非因果关系。"
+    },
+    {
+      "id": "51",
+      "category": "completeness",
+      "text": "We recorded age, temperature, pressure, and elapsed time for every sample.",
+      "referenceZh": "我们为每个样本记录年龄温度压力和经过时间。",
+      "bing": "我们记录了每个样本的年龄、温度、压力和经过的时间。",
+      "mtran": "我们记录了每个样本的年龄、温度、压力和经过的时间。"
+    },
+    {
+      "id": "52",
+      "category": "completeness",
+      "text": "Three instruments measured the signal independently and two detected an anomaly.",
+      "referenceZh": "三台仪器独立测量，两台检测到异常。",
+      "bing": "三台仪器独立测量了信号，其中两台检测到异常。",
+      "mtran": "三台仪器独立测量了该信号，其中两台检测到异常。"
+    },
+    {
+      "id": "53",
+      "category": "completeness",
+      "text": "The procedure consists of initialization, calibration, measurement, and validation.",
+      "referenceZh": "该过程包括初始化校准测量和验证。",
+      "bing": "该过程包括初始化、校准、测量和验证。",
+      "mtran": "该过程包括初始化、校准、测量和验证。"
+    },
+    {
+      "id": "54",
+      "category": "completeness",
+      "text": "The baseline uses the same data, hardware, and stopping criterion as the proposed method.",
+      "referenceZh": "基线采用与所提方法相同的数据硬件和停止准则。",
+      "bing": "基线使用与所提出方法相同的数据、硬件和停止准则。",
+      "mtran": "基准使用与拟用方法相同的数据、硬件和停止标准。"
+    },
+    {
+      "id": "55",
+      "category": "completeness",
+      "text": "We report both successful trials and failures to avoid survivorship bias.",
+      "referenceZh": "我们报告成功和失败试验以避免幸存者偏差。",
+      "bing": "我们报告了成功的试验和失败的试验，以避免幸存者偏差。",
+      "mtran": "我们报告既有成功的试验，也报告了未能避免生存偏见的情况。"
+    },
+    {
+      "id": "56",
+      "category": "completeness",
+      "text": "Missing values were marked explicitly and were not replaced by zero.",
+      "referenceZh": "缺失值明确标记且未被零替换。",
+      "bing": "缺失值被明确标记，并未被替换为零。",
+      "mtran": "缺失值被明确标注，且不会被零替换。"
+    },
+    {
+      "id": "57",
+      "category": "completeness",
+      "text": "Each output retains the identifier of its corresponding input paragraph.",
+      "referenceZh": "每个输出保留对应输入段落的标识。",
+      "bing": "每个输出都保留其对应输入段落的标识符。",
+      "mtran": "每个输出都保留其相应输入段落的标识符。"
+    },
+    {
+      "id": "58",
+      "category": "completeness",
+      "text": "The finding applies to the tested material and may not extend to other materials.",
+      "referenceZh": "发现适用于被测材料，可能不适用于其他材料。",
+      "bing": "该发现适用于所测试的材料，可能不适用于其他材料。",
+      "mtran": "该发现适用于经过测试的材料，不得延伸至其他材料。"
+    },
+    {
+      "id": "59",
+      "category": "completeness",
+      "text": "The authors released the code, parameters, and anonymized measurements.",
+      "referenceZh": "作者公开了代码参数和匿名测量数据。",
+      "bing": "作者发布了代码、参数和匿名化的测量数据。",
+      "mtran": "作者们发布了代码、参数和匿名测量数据。"
+    },
+    {
+      "id": "60",
+      "category": "completeness",
+      "text": "Before drawing conclusions, compare the estimate with its uncertainty and the original observations.",
+      "referenceZh": "下结论前比较估计值不确定性与原始观测。",
+      "bing": "在得出结论之前，将估计值与其不确定性以及原始观测值进行比较。",
+      "mtran": "在得出结论之前，请将估算值与其不确定性和原始观测结果进行比较。"
+    }
+  ]
+}

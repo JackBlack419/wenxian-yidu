@@ -28,6 +28,8 @@ Original PDFs and annotations are preserved. Generated translated PDFs are separ
 
 Screenshots use the Chinese interface; the [bilingual HTML guide](https://jackblack419.github.io/wenxian-yidu/?lang=en) explains the matching controls in English.
 
+Free online engines can be slower because of network delays or rate limits. For faster reading or offline use, consider preparing MTranServer. Translation quality depends on the text; verify important terminology, negation, numbers and units. [See the measured speed and translation comparison](docs/engine-comparison.md#english).
+
 ## Optional features and limits
 
 - **Offline English → Simplified Chinese:** click Prepare offline translation in settings, wait for download, verification and a successful test, then select MTranServer. Windows x64 CPU only; no system Node, Python or Docker installation needed. Prepare full-document components before going offline too.

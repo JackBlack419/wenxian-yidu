@@ -35,3 +35,4 @@
 - dist由打包脚本生成XPI、单文件HTML、网页ZIP、更新清单与SHA-256，通过Releases分发；源码和产物分开。
 - 旧报告、重复截图、原型及旧包移入本地.local-archive，不公开；Git历史、许可与溯源保留。
 - 请求成功不等于语义准确；没有真实凭据的服务不声称完成联网验收。
+- 当前同机60条速度、译文问题和完整输出见 [engine-comparison.md](engine-comparison.md)；离线速度推荐不能写成质量保证。
