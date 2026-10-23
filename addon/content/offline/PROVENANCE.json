@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "node": {
+    "version": "24.22.1",
+    "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-x64.zip",
+    "sha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+    "exeSha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
+    "bytes": 37748064
+  },
+  "mtranserver": {
+    "version": "5.0.1",
+    "url": "https://registry.npmjs.org/mtranserver/-/mtranserver-5.0.1.tgz",
+    "integrity": "sha512-8Z2G3cBfywGUideR4iA11sAXCTndYUW3/YZG1aGEzclkMpYmEY02eTM5i6GyS+QCy5wJXIV71d1pSArDaN/AqA==",
+    "license": "Apache-2.0"
+  },
+  "registry": {
+    "url": "https://firefox.settings.services.mozilla.com/v1/buckets/main-preview/collections/translations-models-v2/records?sourceLanguage=en&_limit=1000",
+    "pair": [
+      "en",
+      "zh-Hans"
+    ],
+    "modelVersion": "3.0",
+    "frozenAt": "2026-10-22"
+  },
+  "files": {
+    "package.json": "0205fe5a4924d77cd08d103cf25283783b444d3c97f73f2849ee6c6883a7c761",
+    "package-lock.json": "c43c3cd7c386c5cff097d70f582dd33fd696698bf86ba8c9cdba7b45819f5711",
+    "records.json": "8c77e67a27a910784b0a71dd4dc9947b036b09f57592b103b8fb1280f40033f4",
+    "worker.mjs": "005900c563dbddf22e2325ff041f54a930140c39cff30a052a045762b241f18f",
+    "modelDownload.mjs": "e458d22145faa65ed1719bced8b7d1c2aff699b90f031e1583214a410c984b0a"
+  },
+  "nativeLoader": {
+    "name": "koffi",
+    "version": "2.15.1",
+    "license": "MIT",
+    "purpose": "Load the locked ONNX DLL by its Unicode path before binding initialization; do not use System32 ONNX."
+  }
+}

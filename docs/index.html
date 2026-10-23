@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="文献译读：在 Zotero 中分屏、逐段对照、划词和输入翻译。安装与上手图文演示。">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://jackblack419.github.io/wenxian-yidu/">
+  <meta property="og:title" content="文献译读 · Zotero 论文翻译插件">
+  <meta property="og:description" content="分屏、逐段对照、划词与输入翻译。免费开源，带图文上手教程和可选离线引擎。">
+  <meta property="og:url" content="https://jackblack419.github.io/wenxian-yidu/">
+  <meta property="og:type" content="website">
+  <title>文献译读 · 从下一段开始读懂论文</title>
+  <style>
+    :root{--ink:#243345;--muted:#5c6a7a;--paper:#f5f7fa;--red:#b6323f;--blue:#2867a1;--line:#dce3eb;--light:#edf5f8;--white:#fff}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:90px}body{margin:0;background:var(--white);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:16px;line-height:1.8}a{color:var(--blue);text-underline-offset:4px}button{font:inherit}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:5px}img{display:block;max-width:100%;height:auto}h1,h2,h3,p{margin-top:0}h1,h2{font-family:"Source Han Serif SC","Songti SC",SimSun,serif;line-height:1.35}h1{font-size:clamp(36px,5vw,64px);font-weight:700;letter-spacing:-1px;margin-bottom:24px}h2{font-size:clamp(28px,3vw,38px);margin-bottom:18px}h3{font-size:19px;line-height:1.6}p{max-width:42em}.wrap{width:min(1200px,calc(100% - 64px));margin:auto}.topbar{position:sticky;top:0;z-index:4;background:rgba(255,255,255,.97);border-bottom:1px solid var(--line)}.nav{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:24px}.brand{display:flex;align-items:center;gap:12px;color:var(--ink);font-weight:700;text-decoration:none;white-space:nowrap}.brand-mark{width:31px;height:35px;display:inline-flex;align-items:center;justify-content:center;color:var(--red);font:700 27px SimSun,serif;border-left:4px solid var(--red);background:#fbf0f2}.nav-links{display:flex;gap:26px;align-items:center;font-size:14px}.nav-links a{color:var(--muted);text-decoration:none}.nav-links a:hover{color:var(--red)}.hero{padding:76px 0 66px;display:grid;grid-template-columns:.85fr 1.15fr;gap:44px;align-items:center}.hero p{font-size:18px;color:var(--muted);line-height:1.9;margin-bottom:28px}.actions{display:flex;gap:14px;flex-wrap:wrap;align-items:center}.button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 22px;border:1px solid var(--line);border-radius:6px;text-decoration:none;background:var(--white);color:var(--ink);font-size:15px;font-weight:600}.button.primary{background:var(--red);color:var(--white);border-color:var(--red)}.button:hover{filter:brightness(.96)}.compat{font-size:13px!important;color:var(--muted);margin:18px 0 0!important}.reader-preview{background:var(--paper);padding:18px 18px 0;border-radius:12px 12px 4px 4px;border:1px solid var(--line);box-shadow:0 18px 40px #26384912;transform:rotate(-1deg)}.reader-preview .window-label{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);padding:0 4px 14px}.reader-preview img{border:1px solid var(--line);border-bottom:0;background:white}.reader-preview figcaption{font-size:12px;padding:12px 0;color:var(--muted);line-height:1.7}.reader-preview figure{margin:0}.section{padding:68px 0}.section.tinted{background:var(--paper)}.section-intro{color:var(--muted);margin-bottom:32px}.setup{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center}.steps{list-style:none;counter-reset:step;padding:0;margin:0}.steps li{counter-increment:step;position:relative;padding:0 0 28px 52px}.steps li:last-child{padding-bottom:0}.steps li:before{content:counter(step);position:absolute;left:0;top:1px;background:var(--white);border:1px solid var(--line);border-radius:50%;width:31px;height:31px;display:grid;place-content:center;font-weight:700;color:var(--red);font-size:14px}.steps strong{display:block;margin-bottom:5px}.steps p{margin:0;color:var(--muted);font-size:14px}.shot{margin:0}.shot a{display:block}.shot img{border:1px solid var(--line);border-radius:5px}.shot figcaption{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.7}.mode-tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:30px 0 0}.mode-tabs button{appearance:none;background:transparent;border:0;border-bottom:3px solid transparent;cursor:pointer;color:var(--muted);padding:13px 27px;font-weight:600}.mode-tabs button[aria-selected="true"]{color:var(--red);border-bottom-color:var(--red);background:#fbf0f2}.mode-tabs button:hover{background:var(--paper)}.mode-copy{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin:28px 0}.mode-copy p{color:var(--muted);font-size:15px;margin:0}.mode-copy h3{margin:0 0 8px}.hint{background:var(--light);padding:18px 22px;border-left:3px solid var(--blue);margin-top:28px;font-size:14px;color:var(--muted)}.hint p{margin:0;max-width:none}.offline{display:grid;grid-template-columns:.85fr 1.15fr;gap:44px;align-items:center}.offline ul{padding-left:22px;color:var(--muted);font-size:15px}.offline li{padding-bottom:10px}.offline .note{font-size:13px;color:var(--muted);margin-top:20px}.faq{display:grid;grid-template-columns:.6fr 1fr;gap:70px}.faq details{border-bottom:1px solid var(--line);padding:18px 0}.faq details:first-child{border-top:1px solid var(--line)}summary{font-size:16px;cursor:pointer;font-weight:600;list-style-position:outside;margin-left:20px}.faq details p{color:var(--muted);font-size:14px;margin:14px 0 2px 20px}.bottom{background:var(--paper);padding:36px 0;border-top:1px solid var(--line)}.footer{display:flex;justify-content:space-between;align-items:flex-start;gap:32px;font-size:13px;color:var(--muted)}.footer p{margin:0 0 8px}.footer a{color:var(--muted)}.lightbox{width:min(96vw,1600px);border:0;padding:14px;border-radius:8px;background:white;max-height:94vh;overflow:auto}.lightbox::backdrop{background:#172b46c9}.lightbox button{position:sticky;top:0;float:right;min-width:44px;min-height:36px;cursor:pointer;border:1px solid var(--line);background:white;border-radius:5px;margin-bottom:10px}.lightbox img{clear:both;width:100%}[hidden]{display:none!important}
+    @media(max-width:900px){.hero{grid-template-columns:1fr;gap:36px;padding-top:44px}.hero-copy{max-width:600px}.reader-preview{transform:none}.setup,.offline{grid-template-columns:1fr}.faq{grid-template-columns:1fr;gap:20px}.section{padding:46px 0}.mode-copy{gap:24px}.nav-links{gap:18px}.wrap{width:calc(100% - 40px)}}
+    @media(max-width:520px){.nav{min-height:62px}.nav-links .optional{display:none}.nav-links{font-size:13px;gap:16px}.brand{font-size:16px}.hero{padding-top:34px}.hero p{font-size:16px}.actions .button{padding:10px 17px}.mode-tabs button{padding:12px 14px;font-size:14px}.mode-copy{grid-template-columns:1fr;gap:10px}.reader-preview{padding:10px 10px 0}.reader-preview .window-label{font-size:11px;padding-bottom:10px}.footer{flex-direction:column;gap:20px}.steps li{padding-left:45px}.section{padding:38px 0}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}@media print{.topbar,.mode-tabs,.actions,.lightbox{display:none!important}.hero,.setup,.offline,.faq{display:block}.mode-panel[hidden]{display:block!important}.section{padding:24px 0}.reader-preview{transform:none;box-shadow:none}body{font-size:11pt}a{color:inherit}}
+    html:lang(en) h1{font-size:clamp(34px,4.2vw,54px)}html:lang(en) .nav-links{gap:16px}html:lang(en) .mode-tabs button{padding-inline:20px}
+    @media(max-width:520px){.nav-links{gap:10px}.nav-links a[href="#start"]{display:none}html:lang(en) .mode-tabs button{padding-inline:12px}.brand{font-size:14px;gap:7px}}
+    @media(max-width:700px){.nav-links .optional,.nav-links a[href="#start"]{display:none}.nav-links{gap:12px}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <nav class="wrap nav" aria-label="主导航">
+      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">译</span>文献译读</a>
+      <div class="nav-links"><a href="#start">安装上手</a><a href="#modes">四种用法</a><a class="optional" href="#offline">离线翻译</a><a class="optional" href="https://github.com/JackBlack419/wenxian-yidu">GitHub</a><button id="guide-language" type="button" aria-label="Switch to English" style="background:transparent;border:1px solid var(--line);padding:5px 10px;border-radius:4px;cursor:pointer;color:var(--ink)">English</button></div>
+    </nav>
+  </header>
+  <main id="top">
+    <div class="wrap hero">
+      <div class="hero-copy">
+        <h1>在论文里，<br>读懂下一段。</h1>
+        <p>选中一句话，或翻开整篇译文。<br>让中英对照留在 Zotero，让注意力留在研究本身。</p>
+        <div class="actions"><a class="button primary" href="https://github.com/JackBlack419/wenxian-yidu/releases/latest">下载插件</a><a class="button" href="#modes">看看怎么用</a></div>
+        <p class="compat">Windows x64 · Zotero 10 · 免费开源<br>基础包约 5.2 MB，离线模型按需准备。</p>
+      </div>
+      <div class="reader-preview">
+        <div class="window-label"><span>原文与译文，在同一个阅读空间</span><span>文献译读</span></div>
+        <figure><img src="images/split.png" width="1500" height="950" alt="Zotero中左边原始英文论文、右边中文译文的真实分屏界面"><figcaption>真实界面截图，使用合成科研文本和本机离线译文。重要内容请对照原文核查。</figcaption></figure>
+      </div>
+    </div>
+
+    <section id="start" class="section tinted">
+      <div class="wrap"><h2>第一次使用，只需三步</h2><p class="section-intro">先用免费在线引擎读起来，离线准备可以以后再做。</p>
+        <div class="setup">
+          <ol class="steps">
+            <li><strong>下载 XPI，安装后重启</strong><p>从 GitHub Releases 的 Assets 下载 .xpi。在 Zotero 选择“工具 → 插件 → 齿轮 → 从文件安装插件”。Source code 是源码，不是安装包。</p></li>
+            <li><strong>第一次点击“翻译”，确认引擎</strong><p>插件会打开设置。可先选择免密钥的必应网页翻译，点击“使用当前引擎”；自己的 API 可先测试连接。</p></li>
+            <li><strong>返回论文，选择阅读方式</strong><p>点开“翻译 ▾”，选择分屏、对照、划词或输入。首次全文处理可能按提示准备 Java 与解析组件。</p></li>
+          </ol>
+          <figure class="shot"><a class="zoom" href="images/engine.png" aria-label="放大引擎设置截图"><img src="images/engine.png" width="1300" height="1000" loading="lazy" alt="设置中选择翻译引擎，点击使用当前引擎和测试当前引擎"></a><figcaption>选择引擎后，记得点击“使用当前引擎”。点击截图可放大。</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="modes" class="section">
+      <div class="wrap"><h2>通读、细读，或只理解一句</h2><p class="section-intro">点击下面的功能，切换真实界面截图。这个演示不会上传文本或调用翻译服务。</p>
+        <div class="mode-tabs" role="tablist" aria-label="选择翻译方式">
+          <button id="tab-split" role="tab" aria-selected="true" aria-controls="mode-split" tabindex="0">分屏翻译</button>
+          <button id="tab-contrast" role="tab" aria-selected="false" aria-controls="mode-contrast" tabindex="-1">对照翻译</button>
+          <button id="tab-selection" role="tab" aria-selected="false" aria-controls="mode-selection" tabindex="-1">划词翻译</button>
+          <button id="tab-input" role="tab" aria-selected="false" aria-controls="mode-input" tabindex="-1">输入翻译</button>
+        </div>
+        <div class="mode-panel" id="mode-split" role="tabpanel" aria-labelledby="tab-split" tabindex="0">
+          <div class="mode-copy"><div><h3>左右并排，通读整篇论文</h3><p>“翻译 ▾ → 分屏翻译”。原文在左，译文在右；可拖动边界调宽，勾选同步阅读联动滚动。</p></div><p>生成完整 PDF 后打开分屏。读完点顶部“关闭译文，返回原文”，译文附件仍保留，下次可复用。</p></div>
+          <figure class="shot"><a class="zoom" href="images/split.png" aria-label="放大分屏翻译截图"><img src="images/split.png" width="1500" height="950" loading="lazy" alt="分屏顶部有同步阅读和关闭译文返回原文按钮，左右分别是英文和中文"></a></figure>
+        </div>
+        <div class="mode-panel" id="mode-contrast" role="tabpanel" aria-labelledby="tab-contrast" tabindex="0" hidden>
+          <div class="mode-copy"><div><h3>一段英文，一段中文</h3><p>“翻译 ▾ → 对照翻译”。重排视图在英文段落下逐步显示中文，先读已完成的部分。</p></div><p>分页和多栏布局会变化。核对公式、图片或原页码时，点“关闭译文，返回原文”。这里同样支持划词。</p></div>
+          <figure class="shot"><a class="zoom" href="images/contrast.png" aria-label="放大对照翻译截图"><img src="images/contrast.png" width="1500" height="950" loading="lazy" alt="可重排阅读视图，每段英文下方显示中文译文"></a></figure>
+        </div>
+        <div class="mode-panel" id="mode-selection" role="tabpanel" aria-labelledby="tab-selection" tabindex="0" hidden>
+          <div class="mode-copy"><div><h3>选中词句，马上看译文</h3><p>先打开“划词翻译”，再选择单词、句子或段落。原 PDF、分屏和对照页面都支持。</p></div><p>面板可调宽、可关闭。自动翻译开关由你控制；切换选区会取消旧请求，“复制译文”只复制结果。</p></div>
+          <figure class="shot"><a class="zoom" href="images/selection.png" aria-label="放大划词翻译截图"><img src="images/selection.png" width="1500" height="950" loading="lazy" alt="右侧划词面板显示选中的句子、自动翻译开关和中文译文"></a></figure>
+        </div>
+        <div class="mode-panel" id="mode-input" role="tabpanel" aria-labelledby="tab-input" tabindex="0" hidden>
+          <div class="mode-copy"><div><h3>自己输入，也不用离开 Zotero</h3><p>“翻译 ▾ → 输入翻译”，或文献库的“工具 → 文献译读：输入翻译”。不需要先选中条目。</p></div><p>粘贴文字，点“翻译为中文”，完成后“复制译文”。和划词共用侧栏，不另开输入标签页。</p></div>
+          <figure class="shot"><a class="zoom" href="images/input.png" aria-label="放大输入翻译截图"><img src="images/input.png" width="1500" height="950" loading="lazy" alt="输入翻译模式中粘贴英文，下面有翻译为中文、复制译文按钮和中文结果"></a></figure>
+        </div>
+        <noscript><p>浏览器未启用 JavaScript，请查看 <a href="https://github.com/JackBlack419/wenxian-yidu/blob/main/docs/user-guide.md">完整图文手册</a>。</p></noscript>
+        <div class="hint"><p>原 PDF 和原有批注保留。生成的译文 PDF 另存为附件；失败段落自动补译一轮，仍失败可手动重试。</p></div>
+      </div>
+    </section>
+
+    <section id="offline" class="section tinted">
+      <div class="wrap offline"><div><h2>需要断网读？<br>再准备离线引擎。</h2><p>这是可选项。免费在线先用，离线按需下载。</p><ul><li>设置中点击“准备离线翻译”，自动准备运行库、依赖和英中模型，无需安装 Node、Python 或 Docker。</li><li>“翻译”左侧与设置同步显示进度，可查看详情、取消或重试。校验、初始化和试译通过才显示“就绪”。</li><li>准备好后，选择 MTranServer 本机离线引擎。CPU 运行，失败不会偷偷改用在线服务。</li></ul><p class="note">仅 Windows x64、英语到简体中文。全文组件也要提前准备。离线译文不保证更准确，重要内容仍需核对。</p></div>
+        <figure class="shot"><a class="zoom" href="images/offline.png" aria-label="放大离线准备进度截图"><img src="images/offline.png" width="1500" height="950" loading="lazy" alt="阅读器翻译按钮左侧显示离线准备状态，点击可查看详情"></a><figcaption>工具栏进度和设置使用同一状态；完成下载后还需校验与试译。</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="section" id="questions"><div class="wrap faq"><div><h2>开始前，你可能还想知道</h2><p class="section-intro">更多操作细节见 <a href="https://github.com/JackBlack419/wenxian-yidu/blob/main/docs/user-guide.md">图文手册</a>。</p><a class="button" href="https://github.com/JackBlack419/wenxian-yidu/releases/latest/download/wenxianyidu-guide.html">下载此单文件手册</a></div><div>
+      <details><summary>是不是一定要付费或填写 API 密钥？</summary><p>插件免费，必应网页翻译可免密钥体验。免费接口可能限流或变更；自己的 API 按服务商规则收费。插件不会自动切换服务商。</p></details>
+      <details><summary>之前翻译过的内容，可以复用吗？</summary><p>可以。开启缓存后，相同引擎配置、语言与规范化文本的句段会复用。分屏和对照的断句方式可能不同，因此不能保证整篇命中，也不能直接互换成品。</p></details>
+      <details><summary>失败了或想取消，怎么处理？</summary><p>从翻译菜单取消，主按钮恢复“翻译”。全文会保存成功段落与检查点；自动补译一轮后仍失败，可点击“重试失败段落（N）”。不要把未译内容当作已完成。</p></details>
+      <details><summary>扫描件和公式都支持吗？</summary><p>当前需要有文字层的 PDF，不含 OCR。复杂版式和公式仍有限制；对照可保留原有数学格式，但不能修复源文本已损坏的公式。请回原 PDF 核对。</p></details>
+      <details><summary>我的论文会发送到哪里？</summary><p>在线待译文本发送到你选定的翻译服务。MTranServer 准备好后在本机运行。密钥使用宿主安全存储，反馈问题时不要公开密钥或私人论文。</p></details>
+    </div></div><div class="wrap"><p style="margin-top:28px;font-size:14px;color:var(--muted)">需要上传到自己的网站？<a href="https://github.com/JackBlack419/wenxian-yidu/releases/latest/download/wenxianyidu-guide.zip">下载页面压缩包</a>，解压后直接打开 index.html，或把整个目录上传至静态网站。</p></div></section>
+  </main>
+  <footer class="bottom"><div class="wrap footer"><div><p><strong>文献译读</strong> · 0.2.5</p><p>把理解留在阅读现场。</p></div><div><p><a href="https://github.com/JackBlack419/wenxian-yidu">源码与下载</a> · <a href="https://github.com/JackBlack419/wenxian-yidu/issues">反馈问题</a> · <a href="https://github.com/JackBlack419/wenxian-yidu/blob/main/docs/known-limitations.md">已知限制</a></p><p>AGPL-3.0 · 基于 <a href="https://github.com/Liozhang/z-transplit">Z-Transplit</a>，感谢上游贡献者。</p></div></div></footer>
+  <dialog class="lightbox" aria-label="放大功能截图"><button type="button" aria-label="关闭放大截图">关闭 ×</button><img alt=""></dialog>
+  <script type="application/json" id="guide-i18n">
+{
+  "文献译读": "Wenxian Yidu",
+  "安装上手": "Get started",
+  "四种用法": "Reading modes",
+  "离线翻译": "Offline",
+  "在论文里，": "Read papers.",
+  "读懂下一段。": "With clarity.",
+  "选中一句话，或翻开整篇译文。": "Select a sentence, or read the whole translation.",
+  "让中英对照留在 Zotero，让注意力留在研究本身。": "Keep English and Chinese together in Zotero. Keep your attention on research.",
+  "下载插件": "Download plugin",
+  "看看怎么用": "Explore the guide",
+  "Windows x64 · Zotero 10 · 免费开源": "Windows x64 · Zotero 10 · Free and open source",
+  "基础包约 5.2 MB，离线模型按需准备。": "About 5.2 MB. Offline models are optional downloads.",
+  "原文与译文，在同一个阅读空间": "Original and translation, in one reading space",
+  "真实界面截图，使用合成科研文本和本机离线译文。重要内容请对照原文核查。": "Real screenshots using synthetic research text and local offline translations. Check important details against the original.",
+  "第一次使用，只需三步": "Three steps to your first translation",
+  "先用免费在线引擎读起来，离线准备可以以后再做。": "Start with a free online engine. Prepare offline translation later if you need it.",
+  "下载 XPI，安装后重启": "Install the XPI, then restart",
+  "从 GitHub Releases 的 Assets 下载 .xpi。在 Zotero 选择“工具 → 插件 → 齿轮 → 从文件安装插件”。Source code 是源码，不是安装包。": "Download the .xpi asset from GitHub Releases. In Zotero: Tools → Plugins → gear icon → Install Plugin From File. Source code archives are not installation packages.",
+  "第一次点击“翻译”，确认引擎": "Choose and confirm a translation engine",
+  "插件会打开设置。可先选择免密钥的必应网页翻译，点击“使用当前引擎”；自己的 API 可先测试连接。": "Settings opens on first use. Try keyless Bing web translation and confirm Use current engine (使用当前引擎). Test the connection if using your own API.",
+  "返回论文，选择阅读方式": "Return to the paper and choose a mode",
+  "点开“翻译 ▾”，选择分屏、对照、划词或输入。首次全文处理可能按提示准备 Java 与解析组件。": "Open Translate (翻译) ▾ and choose split, paragraph, selection or input translation. Full-document translation may first prompt you to prepare Java and PDF components.",
+  "选择引擎后，记得点击“使用当前引擎”。点击截图可放大。": "Confirm Use current engine after choosing. Click screenshots to enlarge. Screenshots show the Chinese interface.",
+  "通读、细读，或只理解一句": "Read a paper, a paragraph, or just one sentence",
+  "点击下面的功能，切换真实界面截图。这个演示不会上传文本或调用翻译服务。": "Choose a mode to view its real interface. This guide does not upload text or call translation services.",
+  "分屏翻译": "Split translation",
+  "对照翻译": "Paragraph comparison",
+  "划词翻译": "Selection translation",
+  "输入翻译": "Input translation",
+  "左右并排，通读整篇论文": "Read the full paper side by side",
+  "“翻译 ▾ → 分屏翻译”。原文在左，译文在右；可拖动边界调宽，勾选同步阅读联动滚动。": "Choose Translate → Split translation (分屏翻译). The original is on the left, translation on the right. Drag the divider to resize and enable synchronized scrolling if needed.",
+  "生成完整 PDF 后打开分屏。读完点顶部“关闭译文，返回原文”，译文附件仍保留，下次可复用。": "Split view opens after the full PDF is generated. Close translation, return to original (关闭译文，返回原文) keeps the translated attachment for later reuse.",
+  "一段英文，一段中文": "English, followed by Chinese",
+  "“翻译 ▾ → 对照翻译”。重排视图在英文段落下逐步显示中文，先读已完成的部分。": "Choose Translate → Paragraph comparison (对照翻译). Chinese appears beneath English in a reflowed view. Read completed paragraphs while the rest load.",
+  "分页和多栏布局会变化。核对公式、图片或原页码时，点“关闭译文，返回原文”。这里同样支持划词。": "Pagination and columns change in this view. Return to the original to check formulas, figures or page numbers. Selection translation also works here.",
+  "选中词句，马上看译文": "Select text and see its translation",
+  "先打开“划词翻译”，再选择单词、句子或段落。原 PDF、分屏和对照页面都支持。": "Open Selection translation (划词翻译), then select a word, sentence or paragraph. Original PDF, split and paragraph views are all supported.",
+  "面板可调宽、可关闭。自动翻译开关由你控制；切换选区会取消旧请求，“复制译文”只复制结果。": "Resize or close the sidebar. Control automatic translation with its switch. A new selection cancels the previous request; Copy translation (复制译文) copies only the result.",
+  "自己输入，也不用离开 Zotero": "Translate your own text inside Zotero",
+  "“翻译 ▾ → 输入翻译”，或文献库的“工具 → 文献译读：输入翻译”。不需要先选中条目。": "Choose Translate → Input translation (输入翻译), or use its Tools menu entry in the library. No selected library item is required.",
+  "粘贴文字，点“翻译为中文”，完成后“复制译文”。和划词共用侧栏，不另开输入标签页。": "Paste text, click Translate into Chinese (翻译为中文), then Copy translation (复制译文). It shares the sidebar with selection mode, without opening a separate input tab.",
+  "浏览器未启用 JavaScript，请查看": "JavaScript is disabled. See the ",
+  "完整图文手册": "illustrated manual",
+  "。": ".",
+  "原 PDF 和原有批注保留。生成的译文 PDF 另存为附件；失败段落自动补译一轮，仍失败可手动重试。": "Original PDFs and annotations stay intact. Translated PDFs are separate attachments. Failed paragraphs receive one automatic retry; retry remaining failures manually.",
+  "需要断网读？": "Need to read offline?",
+  "再准备离线引擎。": "Prepare it when you need it.",
+  "这是可选项。免费在线先用，离线按需下载。": "Optional. Start online and download offline components only when needed.",
+  "设置中点击“准备离线翻译”，自动准备运行库、依赖和英中模型，无需安装 Node、Python 或 Docker。": "Click Prepare offline translation (准备离线翻译) in settings. The runtime, dependencies and English–Chinese model are prepared automatically. No system Node, Python or Docker installation is needed.",
+  "“翻译”左侧与设置同步显示进度，可查看详情、取消或重试。校验、初始化和试译通过才显示“就绪”。": "Progress appears beside Translate and in settings. Open details to cancel or retry. Ready appears only after verification, initialization and a successful test.",
+  "准备好后，选择 MTranServer 本机离线引擎。CPU 运行，失败不会偷偷改用在线服务。": "Select MTranServer after preparation. It runs on your CPU. A failure never silently redirects text to an online service.",
+  "仅 Windows x64、英语到简体中文。全文组件也要提前准备。离线译文不保证更准确，重要内容仍需核对。": "Windows x64, English to Simplified Chinese only. Prepare PDF components before going offline too. Offline translation is not necessarily more accurate; check important details.",
+  "工具栏进度和设置使用同一状态；完成下载后还需校验与试译。": "The toolbar and settings share one state. Downloads still need verification and a translation test.",
+  "开始前，你可能还想知道": "A few questions before you start",
+  "更多操作细节见": "For more instructions, see the ",
+  "图文手册": "illustrated manual",
+  "下载此单文件手册": "Download the standalone HTML",
+  "是不是一定要付费或填写 API 密钥？": "Do I need to pay or enter an API key?",
+  "插件免费，必应网页翻译可免密钥体验。免费接口可能限流或变更；自己的 API 按服务商规则收费。插件不会自动切换服务商。": "The plugin is free. Try Bing web translation without a key. Free endpoints may throttle or change; your API provider may charge. The plugin never automatically switches providers.",
+  "之前翻译过的内容，可以复用吗？": "Can I reuse previous translations?",
+  "可以。开启缓存后，相同引擎配置、语言与规范化文本的句段会复用。分屏和对照的断句方式可能不同，因此不能保证整篇命中，也不能直接互换成品。": "Yes. Enable caching to reuse matching engine configuration, languages and normalized text. Paragraph extraction can differ between views, so an entire document may not match, and finished outputs are not interchangeable.",
+  "失败了或想取消，怎么处理？": "What if translation fails or I want to cancel?",
+  "从翻译菜单取消，主按钮恢复“翻译”。全文会保存成功段落与检查点；自动补译一轮后仍失败，可点击“重试失败段落（N）”。不要把未译内容当作已完成。": "Cancel from the Translate menu. Successful paragraphs and checkpoints are retained. After one automatic retry, use Retry failed paragraphs (N) for remaining failures. Untranslated content is not a completed translation.",
+  "扫描件和公式都支持吗？": "What about scanned papers and formulas?",
+  "当前需要有文字层的 PDF，不含 OCR。复杂版式和公式仍有限制；对照可保留原有数学格式，但不能修复源文本已损坏的公式。请回原 PDF 核对。": "A text-based PDF is required; OCR is not included. Complex layouts and formulas have limits. Paragraph view can preserve existing mathematical formatting, but cannot repair damaged source formulas. Check the original PDF.",
+  "我的论文会发送到哪里？": "Where does my paper text go?",
+  "在线待译文本发送到你选定的翻译服务。MTranServer 准备好后在本机运行。密钥使用宿主安全存储，反馈问题时不要公开密钥或私人论文。": "Online text goes to your selected provider. Prepared MTranServer runs locally. Keys use Zotero's secure storage. Never include keys or private papers in a public issue.",
+  "需要上传到自己的网站？": "Want to host it yourself? ",
+  "下载页面压缩包": "Download the website ZIP",
+  "，解压后直接打开 index.html，或把整个目录上传至静态网站。": ", extract it and open index.html, or upload the entire folder to a static website.",
+  "把理解留在阅读现场。": "Keep understanding close to what you read.",
+  "源码与下载": "Source and downloads",
+  "反馈问题": "Report an issue",
+  "已知限制": "Known limits",
+  "AGPL-3.0 · 基于": "AGPL-3.0 · Based on ",
+  "，感谢上游贡献者。": ". Thanks to the upstream contributors.",
+  "关闭 ×": "Close ×",
+  "主导航": "Main navigation",
+  "选择翻译方式": "Choose a translation mode",
+  "放大功能截图": "Enlarged interface screenshot",
+  "关闭放大截图": "Close screenshot",
+  "放大引擎设置截图": "Enlarge engine settings",
+  "放大分屏翻译截图": "Enlarge split translation",
+  "放大对照翻译截图": "Enlarge paragraph comparison",
+  "放大划词翻译截图": "Enlarge selection translation",
+  "放大输入翻译截图": "Enlarge input translation",
+  "放大离线准备进度截图": "Enlarge offline preparation progress",
+  "Zotero中左边原始英文论文、右边中文译文的真实分屏界面": "Real Zotero split view: original English on the left, Chinese translation on the right",
+  "设置中选择翻译引擎，点击使用当前引擎和测试当前引擎": "Choose an engine in settings, confirm it and test the connection",
+  "分屏顶部有同步阅读和关闭译文返回原文按钮，左右分别是英文和中文": "Split view with English and Chinese, synchronized reading and return-to-original controls",
+  "可重排阅读视图，每段英文下方显示中文译文": "Reflowed view with Chinese beneath each English paragraph",
+  "右侧划词面板显示选中的句子、自动翻译开关和中文译文": "Selection sidebar showing the selected sentence, automatic translation switch and Chinese result",
+  "输入翻译模式中粘贴英文，下面有翻译为中文、复制译文按钮和中文结果": "Input mode with pasted English, translate and copy controls, and Chinese results",
+  "阅读器翻译按钮左侧显示离线准备状态，点击可查看详情": "Offline preparation status beside the reader's Translate button; click for details"
+}
+  </script>
+  <script>
+    const tabs=[...document.querySelectorAll('[role="tab"]')];
+    function selectTab(tab,focus=false){for(const item of tabs){const active=item===tab;item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;document.getElementById(item.getAttribute('aria-controls')).hidden=!active;}if(focus)tab.focus();}
+    for(const tab of tabs){tab.addEventListener('click',()=>selectTab(tab));tab.addEventListener('keydown',event=>{let index=tabs.indexOf(tab);if(event.key==='ArrowRight')index=(index+1)%tabs.length;else if(event.key==='ArrowLeft')index=(index+tabs.length-1)%tabs.length;else if(event.key==='Home')index=0;else if(event.key==='End')index=tabs.length-1;else return;event.preventDefault();selectTab(tabs[index],true);});}
+    const dialog=document.querySelector('.lightbox'),preview=dialog.querySelector('img');
+    for(const link of document.querySelectorAll('.zoom'))link.addEventListener('click',event=>{if(typeof dialog.showModal!=='function')return;event.preventDefault();preview.src=link.querySelector('img').src;preview.alt=link.querySelector('img').alt;dialog.showModal();});
+    dialog.querySelector('button').addEventListener('click',()=>dialog.close());
+    dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+
+    const english=JSON.parse(document.getElementById('guide-i18n').textContent);
+    const textBindings=[],attributeBindings=[],walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+    while(walker.nextNode()){
+      const node=walker.currentNode;
+      if(node.parentElement.closest('script,style,#guide-language'))continue;
+      const key=node.nodeValue.trim();
+      if(Object.hasOwn(english,key))textBindings.push({node,zh:node.nodeValue,en:node.nodeValue.replace(key,english[key])});
+    }
+    for(const element of document.querySelectorAll('[aria-label],[alt]'))for(const attribute of ['aria-label','alt']){
+      const zh=element.getAttribute(attribute);
+      if(zh&&Object.hasOwn(english,zh))attributeBindings.push({element,attribute,zh,en:english[zh]});
+    }
+    const languageButton=document.getElementById('guide-language');
+    function setLanguage(language,remember=false){
+      const en=language==='en';document.documentElement.lang=en?'en':'zh-CN';
+      for(const binding of textBindings)binding.node.nodeValue=en?binding.en:binding.zh;
+      for(const binding of attributeBindings)binding.element.setAttribute(binding.attribute,en?binding.en:binding.zh);
+      document.title=en?'Wenxian Yidu · Translate research papers in Zotero':'文献译读 · 从下一段开始读懂论文';
+      languageButton.textContent=en?'中文':'English';languageButton.setAttribute('aria-label',en?'切换为中文':'Switch to English');
+      if(remember){try{localStorage.setItem('wenxianyidu-guide-language',language);}catch{}try{const url=new URL(location.href);url.searchParams.set('lang',language);history.replaceState(null,'',url);}catch{}}
+    }
+    languageButton.addEventListener('click',()=>setLanguage(document.documentElement.lang==='en'?'zh':'en',true));
+    let initialLanguage=new URLSearchParams(location.search).get('lang');
+    if(!initialLanguage)try{initialLanguage=localStorage.getItem('wenxianyidu-guide-language');}catch{}
+    setLanguage(initialLanguage==='en'?'en':'zh');
+  </script>
+</body>
+</html>

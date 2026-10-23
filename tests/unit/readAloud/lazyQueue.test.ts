@@ -46,6 +46,17 @@ function makeQueue(
 }
 
 describe("LazyTranslateQueue (eager path, no IntersectionObserver)", () => {
+  it("does not render or cache a late response after cancellation", async () => {
+    let finish!: (value: any) => void;
+    const controller = new AbortController(), onDone = vi.fn(), store = vi.fn();
+    const translateBatch = vi.fn(() => new Promise<any>(resolve => { finish = resolve; }));
+    const { queue } = makeQueue({ "1": "pending" }, { translateBatch, onDone, store }, { signal: controller.signal });
+    queue.start(); await vi.waitFor(() => expect(translateBatch).toHaveBeenCalledOnce());
+    controller.abort(); finish({ translations: ["late result"], failedIndices: [] });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(onDone).not.toHaveBeenCalled(); expect(store).not.toHaveBeenCalled(); expect(queue.stats().done).toBe(0);
+    queue.stop();
+  });
   it("translates every entry and reports done via onDone", async () => {
     const onDone = vi.fn();
     const { queue } = makeQueue(

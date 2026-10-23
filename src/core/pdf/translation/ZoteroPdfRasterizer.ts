@@ -38,7 +38,7 @@ function findReaderForAttachment(attachmentId: number): any {
       const id = r._itemID ?? r.itemID ?? r._attachmentId ?? r.attachmentID;
       if (id === attachmentId) return r;
     } catch (e) {
-      safeDebug("[Z-Transplit] ZoteroPdfRasterizer: " + e);
+      safeDebug("[文献译读] ZoteroPdfRasterizer: " + e);
       /* skip */
     }
   }
@@ -131,8 +131,14 @@ const REGION_RENDER_FN_SOURCE = `
     fctx.fillRect(0, 0, fullW, fullH);
     return page.render({ canvasContext: fctx, viewport: viewport }).promise.then(function() {
       // bbox y-up → canvas y-down: top of the box in pixels.
+      // viewport.height is ALREADY in scaled pixels, so the bbox offsets must be
+      // scaled before subtracting. The previous form subtracted an unscaled box
+      // from the scaled height and then scaled the result again, pushing every
+      // crop off the page ("region crop is empty"): on a real 17-page paper all
+      // 22 formula screenshots failed, and the same code feeds the vision-model
+      // LaTeX path.
       var sx = Math.max(0, Math.floor(bx * scale));
-      var sy = Math.max(0, Math.floor((viewport.height - (by + bh) ) * scale));
+      var sy = Math.max(0, Math.floor(viewport.height - (by + bh) * scale));
       var sw = Math.min(fullW - sx, Math.ceil(bw * scale));
       var sh = Math.min(fullH - sy, Math.ceil(bh * scale));
       if (sw <= 0 || sh <= 0) throw new Error("region crop is empty");

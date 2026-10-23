@@ -11,9 +11,9 @@ import { classifyJarError } from "../../../../src/core/pdf/jarErrorKind";
 describe("classifyJarError — 缺失（missing）", () => {
   const missing = [
     // runOpenDataLoader 的原始报告
-    "JAR file not found at C:\\ext\\ztransplit@zotero.org\\core\\pdf\\lib\\opendataloader-pdf-cli.jar. Please ensure opendataloader-pdf-cli.jar is present.",
+    "JAR file not found at C:\\ext\\wenxianyidu@wenxianyidu.local\\core\\pdf\\lib\\opendataloader-pdf-cli.jar. Please ensure opendataloader-pdf-cli.jar is present.",
     // PdfParseError("jar-missing") 的英文提示
-    "OpenDataLoader JAR is missing. Reinstall Z-Transplit to restore opendataloader-pdf-cli.jar.",
+    "OpenDataLoader JAR is missing. Reinstall 文献译读 to restore opendataloader-pdf-cli.jar.",
     // zh-CN 文案被外层错误重新包装后再进入分类
     "翻译失败：OpenDataLoader 解析组件缺失（未找到 jar 文件），请重新安装插件。",
   ];
@@ -43,7 +43,7 @@ describe("classifyJarError — 非组件错误返回 null", () => {
     "GET https://example.com/downloads/jar-list failed: network unreachable",
     "Parse timed out (300s)",
     // 与组件无关的普通解析失败
-    "No .json output found in C:\\Users\\ADMINI~1\\Temp\\ztransplit-odl-1",
+    "No .json output found in C:\\Users\\ADMINI~1\\Temp\\wenxianyidu-odl-1",
     "",
   ];
   it.each(others)("不误判：%s", (msg) => {

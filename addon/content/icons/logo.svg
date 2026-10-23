@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 96 96">
-  <title>Z-Transplit</title>
+  <title>文献译读</title>
   <!--
-    Z-Transplit 品牌标（2026-10-09 改版：弃圆盘 T 标，整族改用侧边栏
+    文献译读 品牌标（2026-10-09 改版：弃圆盘 T 标，整族改用侧边栏
     translate.svg 的「文 / A 互换」母题）。
 
     改版理由：T 盘是字母标志的读法，翻译功能语义弱；「文 / A」对角即
@@ -11,7 +11,7 @@
 
     配色沿品牌三色：墨 #1a1a1a 圆盘 = 原文版面（被翻译的那一页）；白
     笔画「文 / A」= 盘上负形的两种语言（浅底变体反转为墨笔画，见
-    ztransplit-dark.svg）；绯红 #b5343a 箭头 = 翻译/互换（与
+    wenxianyidu-dark.svg）；绯红 #b5343a 箭头 = 翻译/互换（与
     translate.svg「绯红 = 互换箭头」同义）。
 
     几何（96 视框，圆盘 r=34）：母题取 translate.svg 的全部 13 段路径
@@ -22,9 +22,9 @@
     10.2、下空腔 10.1 齐）。最远墨点为 A 右下端帽，距圆心 28.7 + 端帽
     3 = 31.7，对 r=34 盘边余量 2.3，不触盘。
 
-    变体矩阵与旧标一致：本文件为品牌图；README 用 ztransplit-light.svg
-    （浅底，墨盘）/ ztransplit-dark.svg（深底，浅盘）两变体；manifest
-    用 ztransplit-any.svg（墨盘显式配色，亮暗宿主均可辨，QA S7）。
+    变体矩阵与旧标一致：本文件为品牌图；README 用 wenxianyidu-light.svg
+    （浅底，墨盘）/ wenxianyidu-dark.svg（深底，浅盘）两变体；manifest
+    用 wenxianyidu-any.svg（墨盘显式配色，亮暗宿主均可辨，QA S7）。
     本文件不被 manifest 与 chrome:// 引用，配色不受 QA S7 约束。
   -->
   <circle cx="48" cy="48" r="34" fill="#1a1a1a"/>

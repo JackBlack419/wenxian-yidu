@@ -1,5 +1,5 @@
 /**
- * 阅读器右键菜单「Z-Transplit」子菜单的 append 载荷契约
+ * 阅读器右键菜单「文献译读」子菜单的 append 载荷契约
  * （splitViewFactory#registerReaderContextMenu）。
  *
  * 视图右键菜单每次右键都由宿主重建，插件 handler 的 append 载荷就是用户
@@ -14,7 +14,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const KEY = (id: string) => `ztransplit-${id}`;
+const KEY = (id: string) => `wenxianyidu-${id}`;
 
 const { getActiveBilingualModeForItemMock } = vi.hoisted(() => ({
   getActiveBilingualModeForItemMock: vi.fn<() => "interleave" | "transOnly" | null>(

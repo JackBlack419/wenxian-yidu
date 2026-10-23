@@ -1,10 +1,10 @@
 /*
- * Z-Transplit 设置面板样式（编辑 → 设置 → Z-Transplit）。
+ * 文献译读 设置面板样式（编辑 → 设置 → 文献译读）。
  *
  * 由 Zotero.PreferencePanes.register({ stylesheets: [...] }) 注入：Zotero 会把
  * 这个 CSS 以 <?xml-stylesheet?> 处理指令插到「整个偏好设置文档」的根部
  * （见 Zotero_Preferences._loadPane），所以这里的每一条规则都必须限定在
- * #zotero-prefpane-ztransplit 之下，绝不能让选择器漏到 Zotero 自己的面板上。
+ * #zotero-prefpane-wenxianyidu 之下，绝不能让选择器漏到 Zotero 自己的面板上。
  *
  * 主题适配：Zotero 7 的偏好窗口用 Gecko 系统颜色（Zotero 自己的
  * chrome/content/zotero-platform/*/preferences.css 就是 -moz-Dialog /
@@ -13,10 +13,10 @@
  * 取不到就退回系统颜色，两者都不会出现"暗色主题下发白"的问题。
  */
 
-#zotero-prefpane-ztransplit {
+#zotero-prefpane-wenxianyidu {
   /* 语义色板：先问 Zotero/Firefox，再退回 Gecko 系统颜色 */
-  --ztransplit-text: var(--zotero-text-color, -moz-DialogText);
-  --ztransplit-text-secondary: var(--zotero-text-color-secondary, GrayText);
+  --wenxianyidu-text: var(--zotero-text-color, -moz-DialogText);
+  --wenxianyidu-text-secondary: var(--zotero-text-color-secondary, GrayText);
 
   /* 内容宽度有上限，窄窗口下靠下面的弹性尺寸收缩，不会横向溢出 */
   max-width: 100%;
@@ -30,27 +30,27 @@
  */
 
 /* 一行「标签 + 控件」：标签不抢宽度，控件吃掉剩余空间但设有上限 */
-#zotero-prefpane-ztransplit .ztransplit-row {
+#zotero-prefpane-wenxianyidu .wenxianyidu-row {
   margin-block: 2px 3px;
   max-width: 100%;
   min-width: 0;
 }
 
-#zotero-prefpane-ztransplit .ztransplit-row > label {
+#zotero-prefpane-wenxianyidu .wenxianyidu-row > label {
   flex: 0 1 auto;
   min-width: 0;
   margin-inline-end: 6px;
 }
 
 /* 文本输入（接口地址、密钥、区域、模型） */
-#zotero-prefpane-ztransplit .ztransplit-text {
+#zotero-prefpane-wenxianyidu .wenxianyidu-text {
   flex: 1 1 auto;
   min-width: 0;
   max-width: 32em;
 }
 
 /* 数字输入：固定窄宽度，避免 spinner 把行撑开 */
-#zotero-prefpane-ztransplit .ztransplit-number {
+#zotero-prefpane-wenxianyidu .wenxianyidu-number {
   flex: 0 0 auto;
   width: 6em;
   min-width: 0;
@@ -58,7 +58,7 @@
 }
 
 /* 短文本（如 Bing region） */
-#zotero-prefpane-ztransplit .ztransplit-short {
+#zotero-prefpane-wenxianyidu .wenxianyidu-short {
   flex: 0 1 auto;
   width: 12em;
   min-width: 0;
@@ -66,13 +66,13 @@
 }
 
 /* 「显示密钥」复选框：贴着输入框右侧，不参与换行竞争 */
-#zotero-prefpane-ztransplit .ztransplit-key-toggle {
+#zotero-prefpane-wenxianyidu .wenxianyidu-key-toggle {
   flex: 0 0 auto;
   margin-inline-start: 6px;
 }
 
 /* 面板简介（Zotero 自动加的 h1 标题之下、第一个分区之上） */
-#zotero-prefpane-ztransplit .ztransplit-intro {
+#zotero-prefpane-wenxianyidu .wenxianyidu-intro {
   margin-block-end: 4px;
 }
 
@@ -81,8 +81,8 @@
  * 用弱化色），行高略放大便于阅读长文案；换行与断词都放开，长句子和长路径
  * 在窄窗口里只会折行，不会把窗口撑宽。
  */
-#zotero-prefpane-ztransplit .ztransplit-desc {
-  color: var(--ztransplit-text-secondary);
+#zotero-prefpane-wenxianyidu .wenxianyidu-desc {
+  color: var(--wenxianyidu-text-secondary);
   max-width: 60em;
   margin-block: 0 6px;
   line-height: 1.45;
@@ -91,29 +91,29 @@
 }
 
 /* 越界提示：与 Zotero 的 .zotero-message-error 同样只加粗不改色（保证暗色可读） */
-#zotero-prefpane-ztransplit .ztransplit-error {
+#zotero-prefpane-wenxianyidu .wenxianyidu-error {
   font-weight: 600;
   margin-block-start: 2px;
 }
 
 /* 引擎字段组：切换引擎时只切 hidden，不留空档也不跳动 */
-#zotero-prefpane-ztransplit .ztransplit-engine {
+#zotero-prefpane-wenxianyidu .wenxianyidu-engine {
   margin-block-start: 6px;
 }
 
-#zotero-prefpane-ztransplit .ztransplit-engine[hidden] {
+#zotero-prefpane-wenxianyidu .wenxianyidu-engine[hidden] {
   display: none;
 }
 
 /* PDF 分屏翻译里的小标题（Java 运行库 / 字体覆盖目录 / 译文语言） */
-#zotero-prefpane-ztransplit .ztransplit-subhead {
+#zotero-prefpane-wenxianyidu .wenxianyidu-subhead {
   font-weight: 600;
-  color: var(--ztransplit-text);
+  color: var(--wenxianyidu-text);
   margin-block: 8px 2px;
 }
 
 /* 字体目录路径：等宽 + 可选中 + 任意断行，长路径不会撑破布局 */
-#zotero-prefpane-ztransplit .ztransplit-path {
+#zotero-prefpane-wenxianyidu .wenxianyidu-path {
   flex: 1 1 auto;
   min-width: 0;
   max-width: 40em;
@@ -124,3 +124,10 @@
   -moz-user-select: text;
   user-select: text;
 }
+
+#zotero-prefpane-wenxianyidu details { margin-block: 12px; }
+#zotero-prefpane-wenxianyidu summary { cursor: pointer; font-weight: 600; padding-block: 8px; }
+#zotero-prefpane-wenxianyidu .wenxianyidu-setup-steps { padding-inline-start: 24px; line-height: 1.7; max-width: 55em; }
+#zotero-prefpane-wenxianyidu .wenxianyidu-setup-steps li { margin-block: 6px; }
+#zotero-prefpane-wenxianyidu .wenxianyidu-prompt-preview { white-space: pre-wrap; max-height: 20em; overflow: auto; font: inherit; padding: 10px; background: var(--fill-quinary, rgba(127,127,127,.08)); border-radius: 5px; }
+#zotero-prefpane-wenxianyidu [hidden] { display: none !important; }

@@ -1,183 +1,42 @@
-<h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="addon/content/icons/ztransplit-dark.svg" />
-    <img src="addon/content/icons/ztransplit-light.svg" width="42" height="42" alt="Z-Transplit logo" align="top" />
-  </picture>
-  Z-Transplit
-</h1>
+# 文献译读
 
-**English** | [中文](README.zh-CN.md)
+[简体中文](README.md) | [English](README.en.md)
 
-[![Release](https://img.shields.io/github/v/release/Liozhang/z-transplit?color=blue&logo=github)](https://github.com/Liozhang/z-transplit/releases)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/Liozhang/z-transplit/total?color=orange)](https://github.com/Liozhang/z-transplit/releases)
-[![Zotero 10](https://img.shields.io/badge/Zotero-10-CC6633.svg)](https://www.zotero.org/)
+在 Zotero 里直接翻译论文：左右分屏通读、逐段中英对照、划词翻译，也能自己输入文字翻译。
 
-**Selection Translation · Layout-preserving PDF Translation · Split-screen · Bilingual Interleave · Translation-only · Read-aloud — an all-in-one Zotero translation plugin.**
+**[下载安装包](https://github.com/JackBlack419/wenxian-yidu/releases/latest) · [图文用户手册](docs/user-guide.md) · [交互式快速上手](https://jackblack419.github.io/wenxian-yidu/)**
 
-Z-Transplit is a standalone plugin for Zotero 10 that puts the whole translation toolkit
-for reading foreign-language literature in one place: instant translation of the reader's
-selection, layout-preserving full-text PDF translation that produces a translated
-attachment, side-by-side split reading in one tab, Zotero 10 reading-mode bilingual
-interleave with a translation-only mode, plus a cross-session translation cache and
-sentence-level read-aloud.
+适用于 **Windows x64、Zotero 10、有文字层的 PDF**。插件免费开源，采用 AGPL-3.0。基础安装包约 5.2 MB；全文组件和可选离线模型按需下载。
 
-All UI is built with Zotero's native XUL/HTML. No React, no iframe bridge.
+![左右对照阅读英文原文与中文译文](docs/images/split.png)
 
-## Installation
+## 先完成一次翻译
 
-1. Download the latest `z-transplit.xpi` from [Releases](../../releases);
-2. In Zotero: Tools ▸ Add-ons ▸ gear menu ▸ Install Add-on From File, and pick the
-   downloaded xpi;
-3. Open a PDF — the "Translate" section and the context-menu entries appear.
+1. 从 [Releases](https://github.com/JackBlack419/wenxian-yidu/releases/latest) 下载 `.xpi` 文件；Source code 是源码，不是安装包。
+2. Zotero 中打开 **工具 → 插件 → 齿轮 → 从文件安装插件**，选中 XPI，安装后重启。
+3. 打开 PDF，点击 **翻译 ▾**。首次会打开设置，请选择引擎并点击 **使用当前引擎**。想先体验，可选免密钥的必应网页翻译。
+4. 返回论文，选择下面的翻译方式。
 
-## Features
-
-### 1. Selection Translation
-
-Select any text in the reader and the "Translate" section shows source and translation
-with one-click copy. Automatic source-language detection, a target-language box (Enter
-or blur commits it; Enter during IME composition only confirms the candidate), and
-read-aloud of the result. A failed translation, an empty result, an over-long selection
-and an unconfigured engine each get their own explicit message — never a silent blank.
-
-![Selection translate](docs/screenshots/selection-translate.png)
-
-- A "Refresh selection" button re-reads the current reader selection
-- The target-language box commits on Enter or blur; Enter while composing an IME
-  candidate does not submit
-- The result area has four states: translating (a shimmer skeleton), failed (reason +
-  retry), success (translation + copy), idle (a "Translate" button when auto-translate
-  is off)
-- A copy failure keeps the translation on screen and appends a transient failure note
-  instead of discarding it
-- With "auto-translate" on, a selection starts translating immediately
-
-### 2. Full-text Translation (translated attachment)
-
-Right-click a PDF (in the library or the reader) → "Translate full text (save as
-attachment)". OpenDataLoader (local JVM) parses the layout, paragraphs are translated,
-and the result is re-rendered preserving the original layout, stored as a
-"Translated (zh-CN)" attachment and opened automatically. Repeat runs are deduplicated: an
-existing translation is opened instead of re-running the pipeline.
-
-![Translated attachment](docs/screenshots/translated-attachment.png)
-
-- Layout-preserving: columns, tables and image positions are mapped back, and mixed
-  CJK/Latin paragraphs are drawn run-by-run with the matching font
-- CJK fonts are resolved automatically — Microsoft YaHei / PingFang / Noto per target
-  language — with an explicit notice when none is found instead of tofu glyphs; drop a
-  `translated-regular.ttf` into `{data dir}/ztransplit/translation-assets/` to override
-  (e.g. Noto Serif SC to match the serif look of most papers)
-- Formulas (`$…$` / `{v0}`) are swapped for placeholders before translation and painted
-  back in position; the default template asks the model to keep them verbatim
-- A multi-PDF selection runs the pipeline serially, with ordinal labels in the
-  progress window and one failure never stopping the rest
-
-### 3. Split-screen Reading
-
-Right-click (reader or library) → "Translate and open side by side" / "Split-screen
-comparison": one tab, two readers side by side, with a 5px drag resizer between them
-and bidirectional scroll, page and zoom sync — for close paragraph-by-paragraph reading.
-
-![Split view](docs/screenshots/split-view.png)
-
-- "Split-screen comparison" needs no translation: the current PDF and another PDF
-  under the same parent item, side by side
-- "Translate and open side by side" runs the full-text pipeline when no translation
-  exists yet, and reuses an existing one when it does
-- While a translation runs, the context menu gains "Cancel translation in progress"
-
-### 4. Interleaved Bilingual Reading (Zotero 10)
-
-Turn on "Bilingual reading" in the reader's Translate section: Zotero 10's SDT reading mode
-reflows the PDF into structured text and injects a translation block under every
-paragraph, translated lazily as you scroll, with live `3/12 paragraphs translated`
-progress. The "Interleaved" and "Translation only" buttons also work before a
-session starts — one click starts the session straight in that mode, and the
-choice is remembered for the next session.
-
-![Interleaved bilingual](docs/screenshots/bilingual-interleave.png)
-
-### 5. Translation-only Mode
-
-In the same bilingual session switch to "Translation only": original blocks are hidden,
-leaving only the translation for smooth reading. Click a translated paragraph to
-temporarily reveal its original text (click it again, or click another paragraph, to
-hide it) — no mode switching needed when a translation is hard to understand.
-
-![Translation only](docs/screenshots/translation-only.png)
-
-> Interleaved and translation-only modes are built on Zotero 10's reading mode;
-> every other feature (selection, full-text, split, read-aloud) works everywhere
-> in the supported range.
-
-### 6. Read-aloud
-
-Both the bilingual session and the Translate section support read-aloud (Windows SAPI /
-system TTS) with sentence-level highlight tracking: the original is located via the PDF
-text layer, the translation via the bilingual blocks. Pause/resume, previous/next
-sentence and stop are all there.
-
-## Translation Engines
-
-Switchable in the settings pane (Edit ▸ Settings ▸ Z-Transplit). All share a
-content-addressed cross-session cache: the same text + language pair + engine answers
-from cache on the second request, and editing one character re-translates. The cache
-is shared across all four entry points — full-text translation, split view, the
-bilingual view and selection translation — so a paragraph translated anywhere is
-reused verbatim by every other entry point.
-
-| Engine | API key | Notes |
+| 想做什么 | 选择什么 | 你会看到 |
 | --- | --- | --- |
-| Google | optional | Free endpoint, automatic Bing-web fallback |
-| Bing | required | Azure Translator REST API |
-| DeepL | required | free / pro endpoint toggle |
-| AI | endpoint required, key optional | OpenAI-compatible chat/completions with a user-owned prompt template |
-| Custom | required | OpenAI-compatible chat/completions |
-| zotero-pdf-translate | — | Delegates to the plugin when detected |
+| 通读全文 | **分屏翻译** | 左侧原 PDF，右侧中文译文；可同步滚动，也可独立阅读。 |
+| 逐段细读 | **对照翻译** | 每段英文下面逐步显示中文，可先读已完成的部分。 |
+| 理解单词或句子 | **划词翻译** | 选中文字，右侧面板自动显示译文；支持原 PDF、分屏和对照页面。 |
+| 翻译自己输入的内容 | **输入翻译** | 输入或粘贴后翻译，点击“复制译文”取走结果；不用选中文献。 |
 
-![AI engine settings](docs/screenshots/ai-engine.png)
+原 PDF 和批注保留，译文 PDF 另存为同一条目下的附件。分屏与对照顶部均可 **关闭译文，返回原文**。
 
-### The AI engine's prompt template
+## 想进一步了解
 
-The AI engine hands "what gets sent to the model" to the user, and keeps two things for
-itself: the language configuration and the template validation.
+- [图文手册](docs/user-guide.md)：安装、四种阅读方式、补译、离线准备和常见问题。
+- [HTML 演示](https://jackblack419.github.io/wenxian-yidu/)：点击切换功能截图；也可从 Releases 下载单文件 HTML 离线打开，或下载网页 ZIP 上传到自己的网站。
+- [接口配置](docs/engine-setup.md)：自己的 AI API、获取模型列表及连接测试。
+- [已知限制](docs/known-limitations.md) · [开发说明](docs/development.md) · [验证记录](docs/verification.md) · [修改记录](CHANGELOG.md)。
 
-- A template must contain three placeholders — `{{text}}` (the text to translate),
-  `{{sourceLang}}` and `{{targetLang}}`. They use double braces on purpose: `{v0}` /
-  `{v1}` single-brace markers are formula positions in the pipeline, and the default
-  template asks the model to keep them verbatim.
-- The plugin resolves the language codes to readable names (`zh-CN` → Simplified
-  Chinese) instead of sending raw codes.
-- The template is validated as you type in the settings pane: misspelled, missing,
-  duplicated or unbalanced placeholders and over-long templates each get their own
-  inline message, an invalid value is never written to the settings, and a stored
-  invalid template is blocked by the readiness check, which points back at the pane.
-  An empty field restores the built-in default template.
-- The cache invalidates by template fingerprint — editing one character forces a
-  re-translation instead of serving results from the old prompt.
-- Requests go out per paragraph (no batch JSON), same as any other model backend
-  (self-hosted Ollama, vLLM, a gateway, …).
+免费在线接口可能限流或失效；使用自己的付费接口，费用由服务商收取。离线需在设置中主动点击“准备离线翻译”，完成后可用本机 CPU 翻译英语到简体中文。文本只交给你选择的引擎，失败后不会自动切换服务商。重要术语、否定、数字和公式请对照原文核查。
 
-## Entry Points
+## 反馈与贡献
 
-- The reader's / item's "Translate" section: selection translation, bilingual,
-  translation-only, read-aloud
-- Reader right-click (PDF view): "Translate and open side by side", "Split-screen
-  comparison", "Cancel translation in progress"
-- Library right-click: "Translate full text (save as attachment)" and "Translate and
-  compare side by side" — visible only when the selection contains a PDF
-- Edit ▸ Settings ▸ Z-Transplit: engine, credentials, target language, Java and
-  OpenDataLoader options
+请在 [Issues](https://github.com/JackBlack419/wenxian-yidu/issues) 提供版本、复现步骤和去除隐私的截图。欢迎修复、完善文档和改善翻译体验，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## Development
-
-Architecture notes, the porting history, and the build / quality-gate / release
-workflows live in [docs/development.md](docs/development.md).
-
-## License
-
-Copyright (C) 2026 z-transplit contributors
-
-AGPL-3.0 — see [LICENSE](LICENSE). Same license as Zotero itself.
+本项目基于 [Z-Transplit](https://github.com/Liozhang/z-transplit)，接口适配参考 [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate)。感谢上游作者及贡献者。来源、固定提交和许可见 [UPSTREAM.md](UPSTREAM.md)、[第三方说明](docs/third-party.md) 与 [LICENSE](LICENSE)。

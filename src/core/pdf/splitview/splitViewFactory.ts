@@ -10,7 +10,7 @@
  *   3. Two createReaderBrowser() + a 5px resizer <box> into an <hbox>.
  *   4. Each browser loads reader.html; we call its createReader() global with a
  *      cloneInto'd config to start a reader instance per pane.
- *   5. Menu registration: ONE「Z-Transplit」submenu in the reader context
+ *   5. Menu registration: ONE「文献译读」submenu in the reader context
  *      menu (registerReaderContextMenu) — translate+split via the OpenDataLoader
  *      pipeline (with re-entrancy guard + conditional cancel entry), manual
  *      split, and the two bilingual entries; each entry carries a Zotero
@@ -20,7 +20,7 @@
  * Ported from leadero's src/core/pdf/splitview/splitViewFactory.ts. Changes:
  *   - the addonID comes from this repo's package.json config (with a runtime
  *     fallback to `addon.data.config.addonID`);
- *   - the resizer class is `ztransplit-split-resizer`. leadero styled it with a
+ *   - the resizer class is `wenxianyidu-split-resizer`. leadero styled it with a
  *     standalone stylesheet (addon/content/css/leadero-splitview.css), which is
  *     not ported; the rules are injected as a <style> element instead — same
  *     pattern as the reader translate pane (see ensureSplitResizerStyle).
@@ -35,15 +35,23 @@
 import type { SplitTabState, ReaderPaneAdapter, SplitSide } from "./types";
 import { getString } from "../../../utils/locale";
 import { getPrefDynamic } from "../../../utils/prefs";
+import { ensureEngineAvailable } from "../../translation/engineSelection";
 import { createReaderBrowser, ReaderPane } from "./readerPaneAdapter";
 import { safeDebug } from "../../../utils/logger";
 import { toErrorMessage } from "../../../utils/error";
 import { alertDialog } from "../../../utils/dialog";
 import { createAbortController } from "../../../utils/abort";
+import { createOwnedProgressWindow, createProgressRow, scheduleProgressClose } from "../../../utils/progressRow";
+import { cancelAllDocumentJobs, cancelDocumentJob, getRunningDocumentJobs } from "../translation/documentJobs";
+import {
+  getTranslationStatus,
+  updateTranslationStatus,
+} from "./translationStatus";
 import {
   getActiveBilingualModeForItem,
   startBilingualSession,
   stopBilingualSession,
+  cancelBilingualTranslation,
 } from "../sdt/bilingualLauncher";
 import {
   engineCacheIdentity,
@@ -98,7 +106,7 @@ function zoteroDebug(msg: string): void {
   try {
     (globalThis as any).Zotero?.debug?.(msg);
   } catch (e) {
-    safeDebug("[Z-Transplit] splitViewFactory: " + e);
+    safeDebug("[文献译读] splitViewFactory: " + e);
     /* best-effort */
   }
 }
@@ -127,6 +135,22 @@ export async function openSplitView(
   });
   await buildSplitPanes(tabID, win, leftItem, rightItem);
   return tabID;
+}
+
+/** Close only our split tab, retaining the generated attachment. */
+export async function returnFromSplitView(tabID: string): Promise<void> {
+  const state = stateMap.get(tabID);
+  if (!state) return;
+  const itemID = (state.leftAdapter as any)?.item?.id;
+  const location = state.leftAdapter?.getPreciseState?.();
+  if (!itemID) return;
+  const reader = await (Zotero as any).Reader.open(itemID, location ? { pageIndex: location.pageIndex, top: location.top, left: location.left } : undefined);
+  if (!reader) throw new Error(getString("toolbar-no-reader"));
+  if (location) {
+    try { await reader._internalReader?._primaryView?._setState?.({ pageNumber: location.pageIndex + 1, scale: location.scale, top: location.top, left: location.left }); } catch { /* page location already supplied to open */ }
+  }
+  state.win.Zotero_Tabs?.close?.(tabID);
+  cleanupTabResources(tabID);
 }
 
 /**
@@ -191,13 +215,13 @@ async function populateSplitPanes(
     );
   };
   newContainer.style.display = "flex";
-  newContainer.style.flexDirection = "row";
+  newContainer.style.flexDirection = "column";
   newContainer.style.height = "100%";
   newContainer.style.overflow = "hidden";
 
   const mainHbox = win.document.createXULElement("hbox");
   mainHbox.style.cssText =
-    "display:flex;flex-direction:row;flex:1 1 100%;width:100%;height:100%;overflow:hidden;";
+    "display:flex;flex-direction:row;flex:1 1 0;width:100%;min-height:0;overflow:hidden;";
 
   const leftBrowser = createReaderBrowser(win);
   const rightBrowser = createReaderBrowser(win);
@@ -207,7 +231,7 @@ async function populateSplitPanes(
   // ensureSplitResizerStyle; the element only carries the class hooks.
   ensureSplitResizerStyle(win.document);
   const resizer = win.document.createXULElement("box");
-  resizer.className = "ztransplit-split-resizer";
+  resizer.className = "wenxianyidu-split-resizer";
 
   // Initial 50/50 split. flexGrow = ratio*1000, flexBasis = 0.
   const initialRatio = 0.5;
@@ -233,6 +257,7 @@ async function populateSplitPanes(
     rightAdapter: new ReaderPane(rightItem),
     splitRatio: initialRatio,
     syncPaused: false,
+    syncEnabled: true,
     mirrorGuard: false,
     syncScheduled: false,
     lastLeftFraction: null,
@@ -252,6 +277,33 @@ async function populateSplitPanes(
     isCleaningUp: false,
   };
   stateMap.set(tabID, state);
+  const controls = win.document.createXULElement("hbox");
+  controls.style.cssText = "align-items:center;padding:5px 10px;gap:12px;border-bottom:1px solid var(--color-panedivider,#ddd);flex:none;";
+  const leftLabel = win.document.createXULElement("label");
+  leftLabel.setAttribute("value", "英文原文");
+  leftLabel.setAttribute("flex", "1");
+  const sync = win.document.createXULElement("checkbox");
+  sync.setAttribute("label", "同步阅读");
+  sync.setAttribute("checked", "true");
+  sync.id = `wenxianyidu-sync-${tabID}`;
+  const onSync = () => {
+    state.syncEnabled = Boolean(sync.checked);
+    primeSyncBaselines(state);
+  };
+  sync.addEventListener("command", onSync);
+  state.eventListeners.push({ target: sync, type: "command", listener: onSync });
+  const rightLabel = win.document.createXULElement("label");
+  rightLabel.setAttribute("value", "中文译文");
+  rightLabel.setAttribute("flex", "1");
+  rightLabel.style.textAlign = "right";
+  const closeTranslation = win.document.createXULElement("button");
+  closeTranslation.setAttribute("label", getString("split-return-original"));
+  closeTranslation.id = `wenxianyidu-return-${tabID}`;
+  const onReturn = () => { void returnFromSplitView(tabID).catch(error => alertDialog(getString("app-title"), toErrorMessage(error))); };
+  closeTranslation.addEventListener("command", onReturn);
+  state.eventListeners.push({ target: closeTranslation, type: "command", listener: onReturn });
+  controls.append(leftLabel, sync, rightLabel, closeTranslation);
+  newContainer.insertBefore(controls, mainHbox);
 
   // Auto-cleanup when the user closes the tab (X button / Ctrl+W).
   // Zotero doesn't expose a tab-close event, so we observe the DOM: when the
@@ -329,7 +381,7 @@ async function populateSplitPanes(
  * lifetime: open split tabs keep working across plugin disable/reload (see
  * stopAllSyncPollers), and removing the rules would strip their resizer.
  */
-const SPLIT_RESIZER_STYLE_ID = "ztransplit-splitview-style";
+const SPLIT_RESIZER_STYLE_ID = "wenxianyidu-splitview-style";
 
 function ensureSplitResizerStyle(doc: any): void {
   try {
@@ -340,7 +392,7 @@ function ensureSplitResizerStyle(doc: any): void {
     ) as any;
     style.id = SPLIT_RESIZER_STYLE_ID;
     style.textContent = `
-.ztransplit-split-resizer {
+.wenxianyidu-split-resizer {
   width: 5px;
   min-width: 5px;
   max-width: 5px;
@@ -348,10 +400,10 @@ function ensureSplitResizerStyle(doc: any): void {
   background: var(--fill-quinary, rgba(127, 127, 127, 0.12));
   transition: background-color 150ms ease;
 }
-.ztransplit-split-resizer:hover {
+.wenxianyidu-split-resizer:hover {
   background: var(--fill-quarternary, rgba(127, 127, 127, 0.28));
 }
-.ztransplit-split-resizer.dragging {
+.wenxianyidu-split-resizer.dragging {
   background: var(--accent-blue, #4072e5);
 }
 `;
@@ -359,7 +411,7 @@ function ensureSplitResizerStyle(doc: any): void {
   } catch (e) {
     // A missing style must not keep the split view from opening — the resizer
     // still works as a plain flex item, just without the visual affordances.
-    safeDebug("[Z-Transplit] splitViewFactory: inject resizer style: " + e);
+    safeDebug("[文献译读] splitViewFactory: inject resizer style: " + e);
   }
 }
 
@@ -411,7 +463,7 @@ function installResizer(state: SplitTabState): void {
 let _readerContextMenuHandler: ((event: any) => void) | null = null;
 
 /**
- * Register ONE「Z-Transplit」submenu in the reader's blank-area context menu,
+ * Register ONE「文献译读」submenu in the reader's blank-area context menu,
  * holding every reader-level entry so they cannot get mixed up with other
  * plugins' flat items:
  *   - 取消进行中的翻译 (only while a translation is in flight);
@@ -519,7 +571,7 @@ export function registerReaderContextMenu(): void {
       pluginID,
     );
   } catch (e) {
-    safeDebug("[Z-Transplit splitView] menu registration error: " + e);
+    safeDebug("[文献译读 splitView] menu registration error: " + e);
   }
 }
 
@@ -534,7 +586,7 @@ export function unregisterReaderContextMenu(): void {
         _readerContextMenuHandler,
       );
     } catch (e) {
-      safeDebug("[Z-Transplit splitView] menu unregister error: " + e);
+      safeDebug("[文献译读 splitView] menu unregister error: " + e);
     }
     _readerContextMenuHandler = null;
   }
@@ -554,7 +606,7 @@ async function runCompareSplitFromReader(reader: any): Promise<void> {
     }
     await handleSplitFromReader({ itemID: currentItemID });
   } catch (e) {
-    safeDebug("[Z-Transplit splitView] open failed: " + e);
+    safeDebug("[文献译读 splitView] open failed: " + e);
     alertDialog(
       getString("splitview-error-dialog-title"),
       getString("splitview-error-open", { detail: String(e) }),
@@ -613,7 +665,7 @@ function getCurrentReaderItemID(reader: any): number | undefined {
       if (currentReader?.itemID) return currentReader.itemID;
     }
   } catch (e) {
-    safeDebug("[Z-Transplit splitView] getCurrentReaderItemID failed: " + e);
+    safeDebug("[文献译读 splitView] getCurrentReaderItemID failed: " + e);
   }
   // Last resort: the reader object passed by the context-menu handler may
   // still carry the right itemID in cases where the window API is
@@ -621,11 +673,11 @@ function getCurrentReaderItemID(reader: any): number | undefined {
   // Log when this fires so we can detect silent fallback to a stale reader.
   if (!reader?.itemID) {
     safeDebug(
-      "[Z-Transplit splitView] getCurrentReaderItemID: window API path failed, fallback reader.itemID is also undefined",
+      "[文献译读 splitView] getCurrentReaderItemID: window API path failed, fallback reader.itemID is also undefined",
     );
   } else {
     safeDebug(
-      "[Z-Transplit splitView] getCurrentReaderItemID: window API path failed, falling back to reader.itemID = " +
+      "[文献译读 splitView] getCurrentReaderItemID: window API path failed, falling back to reader.itemID = " +
         reader.itemID,
     );
   }
@@ -796,7 +848,7 @@ export async function handleMissingJava(): Promise<boolean> {
     try {
       (Zotero as any).launchURL?.("https://adoptium.net");
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
     return false;
@@ -816,7 +868,7 @@ let javaInstallUiInFlight: Promise<boolean> | null = null;
  * Download + extract the managed JRE with a ProgressWindow — no confirm
  * dialog. This is the programmatically callable half of handleMissingJava:
  * the settings pane's 「安装 / 修复」 button reaches it through
- * Zotero.ZTransplit.java.install, and the dialog flow funnels here too.
+ * Zotero.WenxianYidu.java.install, and the dialog flow funnels here too.
  *
  * Failure keeps its message visible in the progress window and opens the
  * manual download page, so even a caller that ignores the return value leaves
@@ -831,43 +883,39 @@ export function installManagedJavaWithProgress(): Promise<boolean> {
 }
 
 async function runManagedJavaInstall(): Promise<boolean> {
-  const progress = new (Zotero as any).ProgressWindow({
+  const progress = createOwnedProgressWindow({
     window: (Zotero as any).getMainWindow?.() || null,
   });
   progress.changeHeadline(getString("java-progress-install"));
-  progress.addDescription(getString("java-progress-download-prepare"));
+  // 一行原地更新：addDescription 每次调用都会追加一行，而下载回调按网络分片触发
+  // （40 MB 可达数百次），旧实现把进度窗口堆成几十行「下载中 4%」。
+  const row = createProgressRow(progress, getString("java-progress-download-prepare"));
   progress.show();
   try {
     const { downloadJRE } = await import("../JavaRuntimeManager");
-    // ProgressWindow.addDescription appends a row per call, and the download
-    // fires a progress event per network chunk (hundreds for ~40 MB) — report
-    // phase changes and whole 10-percent steps only.
-    let lastDownloadStep = -1;
     await downloadJRE(17, (p) => {
       try {
-        if (p.phase === "downloading") {
-          const step = Math.floor((p.percent || 0) / 10) * 10;
-          if (step === lastDownloadStep) return;
-          lastDownloadStep = step;
-        }
-        progress.addDescription(p.message || `${p.phase} (${p.percent}%)`);
+        const percent = Number(p.percent) || 0;
+        row.setText(p.message || `${p.phase} (${Math.round(percent)}%)`);
+        if (p.phase === "downloading") row.setProgress(percent);
+        else if (p.phase === "done") row.setProgress(100);
       } catch (e) {
-        safeDebug("[Z-Transplit] splitViewFactory: " + e);
+        safeDebug("[文献译读] splitViewFactory: " + e);
         /* best-effort */
       }
     });
-    progress.addDescription(getString("java-progress-retry"));
-    progress.startCloseTimer?.(8000);
+    row.complete(getString("java-progress-retry"));
+    scheduleProgressClose(progress, 8000);
     return true;
   } catch (e: any) {
-    zoteroDebug("[Z-Transplit odl] JRE install failed: " + e);
+    zoteroDebug("[文献译读 odl] JRE install failed: " + e);
     const failMsg = getString("java-install-failed", { detail: toErrorMessage(e) });
-    progress.addDescription("✗ " + failMsg);
+    row.setText("✗ " + failMsg);
     progress.startCloseTimer?.(15000);
     try {
       (Zotero as any).launchURL?.("https://adoptium.net");
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
     return false;
@@ -887,23 +935,94 @@ let activeTranslationController: AbortController | null = null;
  * Python — only needs Java + a configured translation engine). Reached from
  * the reader context-menu submenu; unconditional, no preference gate.
  */
-async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
+export async function translateCurrentReader(
+  reader: any,
+  forceRetranslate = false,
+): Promise<void> {
+  return runTranslateAndSplitFromReader(reader, { forceRetranslate });
+}
+
+/**
+ * 取消当前全文翻译：中断渲染/翻译并让任务记录回到「已取消，可继续」。
+ * 供阅读器工具栏的「取消当前翻译」使用（此前只有右键菜单里的一条）。
+ */
+export function cancelActiveTranslation(sourceItemID?: number): boolean {
+  let cancelled = cancelBilingualTranslation(sourceItemID);
+  try {
+    if (activeTranslationController &&
+        (sourceItemID === undefined || getTranslationStatus().sourceItemID === sourceItemID)) {
+      activeTranslationController.abort();
+      cancelled = true;
+    }
+  } catch (e) {
+    safeDebug("[文献译读] cancelActiveTranslation: " + e);
+  }
+  try {
+    const running = getRunningDocumentJobs().filter(job =>
+      sourceItemID === undefined || job.sourceItemID === sourceItemID);
+    if (running.length > 0) {
+      if (sourceItemID === undefined) cancelAllDocumentJobs();
+      else for (const job of running) cancelDocumentJob(job.id);
+      cancelled = true;
+    }
+  } catch (e) {
+    safeDebug("[文献译读] cancelActiveTranslation(jobs): " + e);
+  }
+  if (cancelled) {
+    // 立刻把工具栏恢复为「翻译」：等流水线回到 catch 才变，点击后会有
+    // 一两秒的「什么都没发生」的错觉。
+    try {
+      if (sourceItemID === undefined || getTranslationStatus().sourceItemID === sourceItemID) {
+        updateTranslationStatus({ phase: "cancelled" });
+      }
+    } catch (e) {
+      safeDebug("[文献译读] cancelActiveTranslation(status): " + e);
+    }
+  }
+  return cancelled;
+}
+
+/** 是否有全文翻译在跑（决定工具栏「取消当前翻译」是否可点）。 */
+export function isTranslationRunning(sourceItemID?: number): boolean {
+  try {
+    return getTranslationStatus(sourceItemID).phase === "running" || Boolean(activeTranslationController &&
+      (sourceItemID === undefined || getTranslationStatus().sourceItemID === sourceItemID)) ||
+      getRunningDocumentJobs().some(job => sourceItemID === undefined || job.sourceItemID === sourceItemID);
+  } catch {
+    return Boolean(activeTranslationController &&
+      (sourceItemID === undefined || getTranslationStatus().sourceItemID === sourceItemID));
+  }
+}
+
+/** 工具栏入口：按模式启动双语会话（段落对照 / 仅译文）。 */
+export async function startBilingualFromReader(
+  reader: any,
+  mode: "interleave" | "transOnly",
+): Promise<void> {
+  return launchBilingualFromReader(reader, mode);
+}
+
+async function runTranslateAndSplitFromReader(
+  reader: any,
+  opts?: { forceRetranslate?: boolean },
+): Promise<void> {
+  if (!await ensureEngineAvailable()) return;
   // Defensive guard: if a translation is already in flight, don't start
   // another. The user should see "取消正在进行的翻译" above this entry
   // in the submenu, but if this fires anyway say so — a silently
   // ignored click reads as "the plugin is broken".
   if (activeTranslationController) {
     safeDebug(
-      "[Z-Transplit splitView] translation already in progress, ignoring duplicate request",
+      "[文献译读 splitView] translation already in progress, ignoring duplicate request",
     );
     try {
-      const busy = new (Zotero as any).ProgressWindow();
+      const busy = createOwnedProgressWindow();
       busy.changeHeadline(getString("app-title"));
       busy.addDescription(getString("splitview-error-in-flight"));
       busy.show();
       busy.startCloseTimer?.(4000);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
     return;
@@ -911,7 +1030,7 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
   const sourceItemID: number | undefined = getCurrentReaderItemID(reader);
   if (!sourceItemID) {
     safeDebug(
-      "[Z-Transplit splitView] cannot resolve source itemID from reader",
+      "[文献译读 splitView] cannot resolve source itemID from reader",
     );
     alertDialog(
       getString("splitview-error-dialog-title"),
@@ -928,52 +1047,21 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
     return;
   }
 
-  // Reuse an existing translation if one is already reachable from
-  // this item — parent siblings, or the dc:relation link written at
-  // import (the only path for top-level sources). Avoids redundant
-  // re-translation.
-  const existing = findExistingTranslation(sourceItem);
-  if (existing) {
-    const win = (Zotero as any).getMainWindow?.() || null;
-    try {
-      await openSplitView(win, sourceItem, existing);
-    } catch (e) {
-      // openSplitView 带超时，复用译文路径同样可能抛错——按本文件惯例
-      // debug + 统一对话框提示。
-      safeDebug(
-        "[Z-Transplit splitView] reuse-translation open failed: " + e,
-      );
-      alertDialog(
-        getString("splitview-error-dialog-title"),
-        getString("splitview-error-open", { detail: String(e) }),
-      );
-      return;
-    }
-    try {
-      const p = new (Zotero as any).ProgressWindow({ window: win });
-      p.changeHeadline(getString("app-title"));
-      p.addDescription(
-        getString("splitview-progress-reused", {
-          title: existing.getField?.("title") || String(existing.id),
-        }),
-      );
-      p.show();
-      p.startCloseTimer?.(3000);
-    } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
-      /* best-effort */
-    }
-    return;
-  }
+  // 工具栏按钮从这里开始显示「翻译中 0/N」，用户不必去猜进度窗口在哪。
+  updateTranslationStatus({
+    phase: "running",
+    done: 0,
+    total: 0,
+    failed: 0,
+    sourceItemID: sourceItem.id,
+    title: String(sourceItem.getField?.("title") || ""),
+  });
 
+  // The pipeline reuses only a checksum- and configuration-matching complete output.
   let progress: any = null;
+  const row = { setText: (message: string) => updateTranslationStatus({ message }), complete: (message: string) => updateTranslationStatus({ message }) };
   try {
-    progress = new (Zotero as any).ProgressWindow({
-      window: (Zotero as any).getMainWindow?.() || null,
-    });
-    progress.changeHeadline(getString("odl-progress-translating"));
-    progress.addDescription(getString("odl-progress-preparing"));
-    progress.show();
+    // Full-document progress lives in the toolbar and plugin panel.
 
     const { translateAndSplitWithOpenDataLoader } =
       await import("../translation/opendataloaderSplitAdapter");
@@ -981,21 +1069,51 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
     activeTranslationController = controller;
     const result = await translateAndSplitWithOpenDataLoader({
       sourceItem,
+      forceRetranslate: opts?.forceRetranslate === true,
       onProgress: (msg: string) => {
         try {
-          progress.addDescription(msg);
+          row?.setText(msg);
           // show() is a no-op while the window is up, but re-opens it
           // (and flushes queued descriptions) after the user closed it —
           // completion and error lines must not be lost silently.
-          progress.show();
+          if (progress) progress.show();
         } catch (e) {
-          safeDebug("[Z-Transplit] splitViewFactory: " + e);
+          safeDebug("[文献译读] splitViewFactory: " + e);
           /* best-effort */
+        }
+      },
+      onCheckpoint: (job) => {
+        // 结构化进度：工具栏按钮显示「翻译中 7/18 · 失败 5 段」。
+        try {
+          updateTranslationStatus({
+            phase: "running",
+            done: job.done ?? 0,
+            total: job.total ?? 0,
+            failed: job.failed ?? 0,
+          });
+        } catch (e) {
+          safeDebug("[文献译读] splitViewFactory: " + e);
         }
       },
       openSplitView,
       signal: controller.signal,
     });
+
+    // 流水线跑完了：把工具栏按钮从「翻译中 N/M」切成结果态。
+    // 主按钮恢复「翻译」，菜单和任务记录保留失败段补译入口。
+    try {
+      const finished = getTranslationStatus();
+      updateTranslationStatus({
+        phase: result.failedCount ? "partial" : "complete",
+        done:
+          result.failedCount || !finished.total
+            ? finished.done
+            : finished.total,
+        failed: result.failedCount ?? 0,
+      });
+    } catch (e) {
+      safeDebug("[文献译读] splitViewFactory: " + e);
+    }
 
     try {
       // Only claim "opened side by side" when a split tab actually
@@ -1003,7 +1121,7 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
       // the translation was saved (the adapter then reports that
       // itself in its progress description).
       if (result.splitTabID) {
-        progress.addDescription(
+        row?.complete(
           getString("odl-progress-done-split", {
             title:
               (Zotero as any).Items.get(result.translatedAttachmentId)
@@ -1012,33 +1130,45 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
           }),
         );
       }
-      progress.startCloseTimer?.(4000);
+      scheduleProgressClose(progress, 5000);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* ignore */
     }
   } catch (e: any) {
-    zoteroDebug("[Z-Transplit odl] failed: " + e);
+    zoteroDebug("[文献译读 odl] failed: " + e);
     // User cancellation — not an error, just stop gracefully. Detected
     // by error NAME: the message is localized, so text equality can't
     // discriminate.
-    if (e?.name === "ZTransplitCancelled") {
+    if (e?.name === "WenxianYiduCancelled") {
+      // 取消不是错误：按钮恢复「翻译」，任务记录里 done/total 保留，
+      // 用户点一下就从缓存接着译（用户走查：取消后不知道能接着译）。
       try {
-        progress?.addDescription(getString("odl-progress-cancelled"));
+        updateTranslationStatus({ phase: "cancelled" });
+      } catch (e) {
+        safeDebug("[文献译读] splitViewFactory: " + e);
+      }
+      try {
+        row?.setText(getString("odl-progress-cancelled"));
         progress?.startCloseTimer?.(3000);
       } catch (e) {
-        safeDebug("[Z-Transplit] splitViewFactory: " + e);
+        safeDebug("[文献译读] splitViewFactory: " + e);
         /* ignore */
       }
       return;
+    }
+    try {
+      updateTranslationStatus({ phase: "failed" });
+    } catch (e) {
+      safeDebug("[文献译读] splitViewFactory: " + e);
     }
     const rawMsg = toErrorMessage(e);
     // Close the in-flight translation progress so it doesn't linger
     // behind the install dialog.
     try {
-      progress?.startCloseTimer?.(1000);
+      scheduleProgressClose(progress, 1000);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* ignore */
     }
     // Special-case missing Java: offer to download a bundled JRE
@@ -1051,10 +1181,10 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
     }
     const friendly = friendlyOdlError(rawMsg);
     try {
-      progress?.addDescription("✗ " + friendly);
-      progress?.startCloseTimer?.(10000);
+      row?.setText("✗ " + friendly);
+      scheduleProgressClose(progress, 10000);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* ignore */
     }
     alertDialog(getString("odl-error-dialog-title"), friendly);
@@ -1066,6 +1196,7 @@ async function runTranslateAndSplitFromReader(reader: any): Promise<void> {
 let _bilingualMenuBusy = false;
 
 async function launchBilingualFromReader(reader: any, mode: "interleave" | "transOnly"): Promise<void> {
+  if (!await ensureEngineAvailable()) return;
   if (_bilingualMenuBusy) return;
   _bilingualMenuBusy = true;
   try {
@@ -1083,10 +1214,12 @@ async function launchBilingualFromReader(reader: any, mode: "interleave" | "tran
 
     const win = (Zotero as any).getMainWindow?.() || null;
     let progress: any = null;
+    let row: ReturnType<typeof createProgressRow> | null = null;
     try {
-      progress = new (Zotero as any).ProgressWindow({ window: win });
+      progress = createOwnedProgressWindow({ window: win });
       progress.changeHeadline(getString("app-title"));
-      progress.addDescription(getString("itemtree-launch-progress"));
+      // 段落队列每译完一段回调一次：一行原地更新，避免进度窗口堆成历史列表。
+      row = createProgressRow(progress, getString("itemtree-launch-progress"));
       progress.show();
 
       const lang =
@@ -1107,7 +1240,7 @@ async function launchBilingualFromReader(reader: any, mode: "interleave" | "tran
         cacheIdentity,
         onProgress: (stats) => {
           try {
-            progress.addDescription(
+            row?.setText(
               getString("bilingual-progress", {
                 done: stats.done,
                 total: stats.total,
@@ -1121,18 +1254,18 @@ async function launchBilingualFromReader(reader: any, mode: "interleave" | "tran
       });
 
       if (!handle) {
-        progress.addDescription(getString("bilingual-sdt-missing"));
-        progress.startCloseTimer?.(6000);
+        row?.setText(getString("bilingual-sdt-missing"));
+        scheduleProgressClose(progress, 6000);
         return;
       }
 
-      progress.addDescription(getString("itemtree-launch-done"));
-      progress.startCloseTimer?.(3000);
+      row?.complete(getString("itemtree-launch-done"));
+      scheduleProgressClose(progress, 3000);
     } catch (e: any) {
-      safeDebug("[Z-Transplit] bilingual reader menu launch failed: " + e);
+      safeDebug("[文献译读] bilingual reader menu launch failed: " + e);
       try {
-        progress?.addDescription("✗ " + toErrorMessage(e));
-        progress?.startCloseTimer?.(8000);
+        row?.setText("✗ " + toErrorMessage(e));
+        scheduleProgressClose(progress, 8000);
       } catch {
         /* best-effort */
       }

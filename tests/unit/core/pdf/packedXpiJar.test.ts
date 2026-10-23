@@ -106,9 +106,9 @@ class FakeFS {
 const DATA_DIR = "D:\\ZoteroData";
 const PROFILE = "C:\\Users\\tester\\profile";
 const EXT_DIR = PROFILE + "\\extensions";
-const XPI_PATH = EXT_DIR + "\\ztransplit@zotero.org.xpi";
-const UNPACKED_DIR = EXT_DIR + "\\ztransplit@zotero.org";
-const ADDON_ID = "ztransplit@zotero.org";
+const XPI_PATH = EXT_DIR + "\\wenxianyidu@wenxianyidu.local.xpi";
+const UNPACKED_DIR = EXT_DIR + "\\wenxianyidu@wenxianyidu.local";
+const ADDON_ID = "wenxianyidu@wenxianyidu.local";
 const TMP_DIR = "C:\\Temp";
 
 const JAR_BYTES = new Uint8Array([0x50, 0x4b, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8]);
@@ -380,7 +380,7 @@ describe("fileUrlFromJarUri", () => {
 
   it("解包安装的 file: URI、resource: URI 与空值返回 null", () => {
     expect(fileUrlFromJarUri("file:///D:/repo/.scaffold/build/addon/")).toBeNull();
-    expect(fileUrlFromJarUri("resource://ztransplit@zotero.org/")).toBeNull();
+    expect(fileUrlFromJarUri("resource://wenxianyidu@wenxianyidu.local/")).toBeNull();
     expect(fileUrlFromJarUri("")).toBeNull();
     expect(fileUrlFromJarUri(undefined)).toBeNull();
     expect(fileUrlFromJarUri(null)).toBeNull();
@@ -399,12 +399,12 @@ describe("extractJarFromPackedXpi", () => {
     const target = await extractJarFromPackedXpi(XPI_PATH, JAR);
 
     expect(target).toBe(
-      path.win32.join(DATA_DIR, "ztransplit", "lib", JAR),
+      path.win32.join(DATA_DIR, "wenxianyidu", "lib", JAR),
     );
     expect([...fs.read(target)]).toEqual([...JAR_BYTES]);
     const rec = zipRegistry.get(XPI_PATH)!;
     expect(rec.jarReads).toBe(1);
-    const libDir = path.win32.join(DATA_DIR, "ztransplit", "lib");
+    const libDir = path.win32.join(DATA_DIR, "wenxianyidu", "lib");
     for (const child of fs.children(libDir)) {
       expect(child).not.toContain(".staging-");
     }
@@ -413,7 +413,7 @@ describe("extractJarFromPackedXpi", () => {
   it("落地副本完好：哈希匹配即复用，不再读取 jar 条目", async () => {
     addJarEntry(XPI_PATH, JAR);
     addProvenanceEntry(XPI_PATH, JAR, sha256(JAR_BYTES));
-    const target = path.win32.join(DATA_DIR, "ztransplit", "lib", JAR);
+    const target = path.win32.join(DATA_DIR, "wenxianyidu", "lib", JAR);
     fs.write(target, JAR_BYTES);
     zipRecordFor(XPI_PATH); // opens = 0
 
@@ -428,7 +428,7 @@ describe("extractJarFromPackedXpi", () => {
   it("落地副本损坏：重解压自愈", async () => {
     addJarEntry(XPI_PATH, JAR);
     addProvenanceEntry(XPI_PATH, JAR, sha256(JAR_BYTES));
-    const target = path.win32.join(DATA_DIR, "ztransplit", "lib", JAR);
+    const target = path.win32.join(DATA_DIR, "wenxianyidu", "lib", JAR);
     fs.write(target, OTHER_BYTES); // 损坏 / 截断的旧副本
 
     const out = await extractJarFromPackedXpi(XPI_PATH, JAR);
@@ -445,7 +445,7 @@ describe("extractJarFromPackedXpi", () => {
       /checksum mismatch/,
     );
     expect(
-      fs.exists(path.win32.join(DATA_DIR, "ztransplit", "lib", JAR)),
+      fs.exists(path.win32.join(DATA_DIR, "wenxianyidu", "lib", JAR)),
     ).toBe(false);
   });
 
@@ -481,7 +481,7 @@ describe("getJarPath（打包安装）", () => {
     // 没有触发解压：zip 注册表为空，数据目录未落地任何文件
     expect(zipRegistry.size).toBe(0);
     expect(
-      fs.exists(path.win32.join(DATA_DIR, "ztransplit", "lib", jarName)),
+      fs.exists(path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName)),
     ).toBe(false);
   });
 
@@ -492,7 +492,7 @@ describe("getJarPath（打包安装）", () => {
     addProvenanceEntry(XPI_PATH, jarName, sha256(JAR_BYTES));
 
     const first = await getJarPath(jarName);
-    expect(first).toBe(path.win32.join(DATA_DIR, "ztransplit", "lib", jarName));
+    expect(first).toBe(path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName));
     expect([...fs.read(first)]).toEqual([...JAR_BYTES]);
     expect(zipRegistry.get(XPI_PATH)!.opens).toBe(1);
 
@@ -507,7 +507,7 @@ describe("getJarPath（打包安装）", () => {
     extEntries.push(makeExtEntry(ADDON_ID + ".xpi", "file"));
     addJarEntry(XPI_PATH, jarName);
     addProvenanceEntry(XPI_PATH, jarName, sha256(JAR_BYTES));
-    const target = path.win32.join(DATA_DIR, "ztransplit", "lib", jarName);
+    const target = path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName);
     fs.write(target, OTHER_BYTES);
 
     const out = await getJarPath(jarName);
@@ -528,7 +528,7 @@ describe("getJarPath（打包安装）", () => {
     expect(out).toBe(".\\core\\pdf\\lib\\" + jarName);
     expect(loggedErrors.join("\n")).toMatch(/checksum mismatch/);
     expect(
-      fs.exists(path.win32.join(DATA_DIR, "ztransplit", "lib", jarName)),
+      fs.exists(path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName)),
     ).toBe(false);
   });
 });
@@ -540,7 +540,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     const jarName = "status-landed.jar";
     extEntries.push(makeExtEntry(ADDON_ID + ".xpi", "file"));
     addProvenanceMeta(XPI_PATH, jarName, sha256(JAR_BYTES));
-    const target = path.win32.join(DATA_DIR, "ztransplit", "lib", jarName);
+    const target = path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName);
     fs.write(target, JAR_BYTES);
 
     const status = await getOdlJarStatus(jarName);
@@ -557,7 +557,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     extEntries.push(makeExtEntry(ADDON_ID + ".xpi", "file"));
     addProvenanceMeta(XPI_PATH, jarName, sha256(JAR_BYTES));
     fs.write(
-      path.win32.join(DATA_DIR, "ztransplit", "lib", jarName),
+      path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName),
       OTHER_BYTES,
     );
 
@@ -608,7 +608,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     expect(out).toBe(".\\core\\pdf\\lib\\" + jarName);
     expect(httpCalls).toBe(0);
     expect(
-      fs.exists(path.win32.join(DATA_DIR, "ztransplit", "lib", jarName)),
+      fs.exists(path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName)),
     ).toBe(false);
   });
 
@@ -616,7 +616,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     const jarName = "repair-healthy.jar";
     extEntries.push(makeExtEntry(ADDON_ID + ".xpi", "file"));
     addProvenanceMeta(XPI_PATH, jarName, sha256(JAR_BYTES));
-    const target = path.win32.join(DATA_DIR, "ztransplit", "lib", jarName);
+    const target = path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName);
     fs.write(target, JAR_BYTES);
     zipRecordFor(XPI_PATH); // opens = 0
 
@@ -627,7 +627,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     // 打开 zip 只允许是为了读 PROVENANCE 指纹（核对落地副本），jar 条目本身
     // 不得重读（无解压），数据目录也不得出现暂存文件。
     expect(rec.jarReads).toBe(0);
-    for (const child of fs.children(path.win32.join(DATA_DIR, "ztransplit", "lib"))) {
+    for (const child of fs.children(path.win32.join(DATA_DIR, "wenxianyidu", "lib"))) {
       expect(child).not.toContain(".staging-");
     }
   });
@@ -637,7 +637,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     extEntries.push(makeExtEntry(ADDON_ID + ".xpi", "file"));
     addJarEntry(XPI_PATH, jarName);
     addProvenanceMeta(XPI_PATH, jarName, sha256(JAR_BYTES));
-    const target = path.win32.join(DATA_DIR, "ztransplit", "lib", jarName);
+    const target = path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName);
     fs.write(target, OTHER_BYTES);
 
     const out = await installOdlJar(jarName);
@@ -662,7 +662,7 @@ describe("getOdlJarStatus / installOdlJar（解析组件修复入口）", () => 
     );
     expect(httpCalls).toBeGreaterThan(0); // 修复确实发起过下载尝试
     expect(
-      fs.exists(path.win32.join(DATA_DIR, "ztransplit", "lib", jarName)),
+      fs.exists(path.win32.join(DATA_DIR, "wenxianyidu", "lib", jarName)),
     ).toBe(false);
   });
 });

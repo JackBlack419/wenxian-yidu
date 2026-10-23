@@ -49,7 +49,7 @@ export async function parseItemPdfToMarkdown(
       images: {},
       source: "opendataloader-pdf",
       error:
-        "OpenDataLoader PDF is not enabled. Enable it in Z-Transplit preferences.",
+        "OpenDataLoader PDF is not enabled. Enable it in 文献译读 preferences.",
     };
   }
 
@@ -133,7 +133,7 @@ export async function parseItemPdfToJson(
       data: null,
       source: "opendataloader-pdf",
       error:
-        "OpenDataLoader PDF is not enabled. Enable it in Z-Transplit preferences.",
+        "OpenDataLoader PDF is not enabled. Enable it in 文献译读 preferences.",
     };
   }
 

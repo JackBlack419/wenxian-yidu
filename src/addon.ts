@@ -1,14 +1,20 @@
 import { config } from "../package.json";
+import { prepareOffline, cancelOfflinePreparation, getOfflineStatus, subscribeOfflineStatus, stopOfflineService } from "./core/translation/offlineManager";
+import { openTranslationPanel } from "./ui/translationPanel";
 import hooks from "./hooks";
-import { getJavaStatus } from "./core/pdf/JavaRuntimeManager";
+import { translateSegments, testConnection, getDefaultPrompt, listModels } from "./core/translation/translationService";
+import { getEngineCapabilities } from "./core/translation/translationEngines";
+import { getCredential, setCredential, clearCredential } from "./utils/credentials";
+import { getJavaStatus, importJavaArchive } from "./core/pdf/JavaRuntimeManager";
 import { installManagedJavaWithProgress } from "./core/pdf/splitview/splitViewFactory";
 import {
   getOdlJarStatus,
   installOdlJar,
+  importOdlJar,
 } from "./core/pdf/OpenDataLoaderPdfClient";
 
 /**
- * Addon singleton, published as `Zotero.ZTransplit` by src/index.ts (the name
+ * Addon singleton, published as `Zotero.WenxianYidu` by src/index.ts (the name
  * comes from package.json config.addonInstance) and reachable from every module
  * through `_globalThis.addon`.
  */
@@ -25,6 +31,10 @@ class Addon {
   };
   public hooks: typeof hooks;
   public api: object;
+  public translation = { translateSegments, testConnection, listModels, getCapabilities: getEngineCapabilities, getDefaultPrompt };
+  public openTranslationPanel = openTranslationPanel;
+  public offline = { prepare: prepareOffline, cancel: cancelOfflinePreparation, getStatus: getOfflineStatus, subscribe: subscribeOfflineStatus, shutdown: () => { cancelOfflinePreparation(); stopOfflineService(); } };
+  public credentials = { get: getCredential, set: setCredential, clear: clearCredential };
   /**
    * Java 运行库的编程入口，供设置面板脚本（addon/content/preferences.js）
    * 使用：面板运行在 Cu.Sandbox 里，无法 import 主包模块，只能走这个挂在
@@ -35,6 +45,7 @@ class Addon {
   public java: {
     getStatus: typeof getJavaStatus;
     install: typeof installManagedJavaWithProgress;
+    importArchive: typeof importJavaArchive;
   };
   /**
    * OpenDataLoader 解析组件（jar）的编程入口，供设置面板脚本
@@ -45,6 +56,7 @@ class Addon {
   public odlJar: {
     getStatus: typeof getOdlJarStatus;
     install: typeof installOdlJar;
+    importFile: typeof importOdlJar;
   };
 
   constructor() {
@@ -59,10 +71,12 @@ class Addon {
     this.java = {
       getStatus: getJavaStatus,
       install: installManagedJavaWithProgress,
+      importArchive: importJavaArchive,
     };
     this.odlJar = {
       getStatus: getOdlJarStatus,
       install: installOdlJar,
+      importFile: importOdlJar,
     };
   }
 }

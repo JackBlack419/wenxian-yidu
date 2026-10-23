@@ -11,7 +11,7 @@
  * operations that never throw.
  *
  * Storage layout:
- *   {DataDir}/ztransplit/word-cards/v1/<key[0:2]>/<key>.json
+ *   {DataDir}/wenxianyidu/word-cards/v1/<key[0:2]>/<key>.json
  *
  * Key: sha1 of the normalized word (case-folded, apostrophes unified) — the
  * same word looked up again merges into one card, whatever the engine or
@@ -79,7 +79,7 @@ function dataRoot(): string | null {
 function storeRoot(): string | null {
   const root = dataRoot();
   if (!root) return null;
-  return joinPath(root, "ztransplit", "word-cards", `v${STORE_VERSION}`);
+  return joinPath(root, "wenxianyidu", "word-cards", `v${STORE_VERSION}`);
 }
 
 /**
@@ -213,7 +213,7 @@ async function loadIndex(): Promise<Map<string, WordCardRecord>> {
       }
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore index load failed: " + e);
+    safeDebug("[文献译读] wordCardStore index load failed: " + e);
   }
   return map;
 }
@@ -248,13 +248,29 @@ async function writeRecord(record: WordCardRecord): Promise<void> {
     await IOUtils.makeDirectory(bucket, { createDirs: true, ignoreExisting: true });
     await IOUtils.write(path, new TextEncoder().encode(JSON.stringify(record)));
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore write failed: " + e);
+    safeDebug("[文献译读] wordCardStore write failed: " + e);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API — every function is defensive and never throws
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Monotonic write stamp.
+ *
+ * Two lookups recorded in the same millisecond used to share `updatedAt`, and
+ * the "most recently updated first" list then fell back to Map insertion order —
+ * a card created *after* another could appear before it, so the recent-cards
+ * strip and its tests flipped between runs. Bumping by one millisecond keeps the
+ * stored value a real timestamp while guaranteeing strict write ordering.
+ */
+let lastWriteStamp = 0;
+function nextWriteStamp(): number {
+  const now = Date.now();
+  lastWriteStamp = now > lastWriteStamp ? now : lastWriteStamp + 1;
+  return lastWriteStamp;
+}
 
 export interface UpsertWordCardOptions {
   word: string;
@@ -277,7 +293,7 @@ export async function upsertWordCard(options: UpsertWordCardOptions): Promise<vo
 
     const index = await getIndex();
     const existing = index.get(key);
-    const now = Date.now();
+    const now = nextWriteStamp();
     const record: WordCardRecord = existing ?? {
       v: STORE_VERSION,
       key,
@@ -300,7 +316,7 @@ export async function upsertWordCard(options: UpsertWordCardOptions): Promise<vo
     index.set(key, record);
     await writeRecord(record);
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore upsert failed: " + e);
+    safeDebug("[文献译读] wordCardStore upsert failed: " + e);
   }
 }
 
@@ -311,7 +327,7 @@ export async function getWordCard(word: string): Promise<WordCardRecord | null> 
     if (!key) return null;
     return (await getIndex()).get(key) ?? null;
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore get failed: " + e);
+    safeDebug("[文献译读] wordCardStore get failed: " + e);
     return null;
   }
 }
@@ -320,10 +336,18 @@ export async function getWordCard(word: string): Promise<WordCardRecord | null> 
 export async function listWordCards(): Promise<WordCardRecord[]> {
   try {
     const all = Array.from((await getIndex()).values());
-    all.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    // Two cards upserted in the same millisecond must still order stably:
+    // tie-break on the word so the list never flickers between reloads (the
+    // previous single-key sort left equal timestamps in insertion order, which
+    // made tests and the recent-card strip non-deterministic).
+    all.sort(
+      (a, b) =>
+        (b.updatedAt || 0) - (a.updatedAt || 0) ||
+        String(a.word).localeCompare(String(b.word)),
+    );
     return all;
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore list failed: " + e);
+    safeDebug("[文献译读] wordCardStore list failed: " + e);
     return [];
   }
 }
@@ -364,7 +388,7 @@ export async function deleteWordCard(word: string): Promise<boolean> {
     }
     return true;
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore delete failed: " + e);
+    safeDebug("[文献译读] wordCardStore delete failed: " + e);
     return false;
   }
 }
@@ -379,6 +403,6 @@ export async function clearAllWordCards(): Promise<void> {
       await IOUtils.remove(root, { recursive: true });
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardStore clear failed: " + e);
+    safeDebug("[文献译读] wordCardStore clear failed: " + e);
   }
 }

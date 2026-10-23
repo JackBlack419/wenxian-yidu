@@ -174,7 +174,7 @@ export class WordCardSpeaker {
       );
       this.onChange();
     } catch (e) {
-      safeDebug("[Z-Transplit] wordCardSpeech toggle failed: " + e);
+      safeDebug("[文献译读] wordCardSpeech toggle failed: " + e);
       this.active = null;
       this.controller = null;
     }

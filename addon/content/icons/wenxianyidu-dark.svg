@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 96 96">
+  <title>文献译读</title>
+  <!--
+    深色宿主专用（README 深色模式用，2026-10-09 随品牌标改版换芯）：
+    浅圆反色，避免墨盘没入深色页面底——浅盘 #fafafa / 墨笔画 #1a1a1a /
+    绯红箭头 #b5343a。盘上是与侧边栏 translate-dark.svg 同一母题的
+    「文 / A 互换」，几何与配色推导见 logo.svg 头注释。品牌资产，无
+    chrome:// 引用，配色不受 QA S7 约束。
+  -->
+  <circle cx="48" cy="48" r="34" fill="#fafafa"/>
+  <g transform="translate(0 1.2)">
+    <g fill="none" stroke="#1a1a1a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M36.4 26 L38.7 29.4"/>
+      <path d="M28.3 36.4 H46.8"/>
+      <path d="M37.6 36.4 L29.4 50.3"/>
+      <path d="M37.6 36.4 L45.7 50.3"/>
+      <path d="M51.5 67.7 L59.6 45.7"/>
+      <path d="M67.7 67.7 L59.6 45.7"/>
+      <path d="M55 59.6 H64.2"/>
+    </g>
+    <g fill="none" stroke="#b5343a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M56.1 28.3 L65.4 37.6"/>
+      <path d="M65.4 37.6 L60.2 37.6"/>
+      <path d="M65.4 37.6 L65.4 32.3"/>
+      <path d="M39.9 67.7 L30.6 58.4"/>
+      <path d="M30.6 58.4 L35.8 58.4"/>
+      <path d="M30.6 58.4 L30.6 63.7"/>
+    </g>
+  </g>
+</svg>

@@ -55,6 +55,7 @@ function jsonResponse(obj: any, ok = true, status = 200, statusText = "OK") {
 }
 
 function setPrefs(prefs: Record<string, unknown>) {
+  vi.stubGlobal("Services", { logins: { findLogins: () => Object.entries(prefs).filter(([key]) => /apiKey|appSecret|appKey/.test(key)).map(([username,password]) => ({username,password})) } });
   Z.Prefs = {
     get: (k: string) => {
       for (const [suffix, v] of Object.entries(prefs)) {
@@ -103,10 +104,10 @@ afterEach(() => {
 });
 
 describe("getEngineConfig", () => {
-  it("defaults: google engine (keyless), global bing region, empty custom model (server default)", () => {
+  it("defaults: keyless Bing trial engine, global bing region, empty custom model (server default)", () => {
     const cfg = getEngineConfig();
     expect(cfg).toMatchObject({
-      engineType: "google",
+      engineType: "bing-web",
       bingRegion: "global",
       customModel: "",
       deeplUseFree: false,
@@ -332,9 +333,9 @@ describe("engine wire contracts", () => {
     await expect(t("bad", "zh-CN")).rejects.toThrow("engine boom");
   });
 
-  it("google failure falls back to the keyless Bing web endpoint", async () => {
+  it("explicit Bing-web uses the keyless endpoint without contacting another provider", async () => {
     resetBingWebSession();
-    setPrefs({ "translate.engineType": "google" });
+    setPrefs({ "translate.engineType": "bing-web" });
     route("translate_a/single", () =>
       jsonResponse({ message: "blocked" }, false, 500, "Internal Server Error"),
     );
@@ -366,10 +367,10 @@ describe("engine wire contracts", () => {
     expect(await t("hello", "zh-CN")).toBe("你好");
 
     // Call order: google (fails) → bing token page → ttranslatev3.
-    expect(h.fetchCalls).toHaveLength(3);
-    expect(h.fetchCalls[1].url).toContain("www.bing.com/translator");
+    expect(h.fetchCalls).toHaveLength(2);
+    expect(h.fetchCalls[0].url).toContain("www.bing.com/translator");
     // Live-page request shape: IG/IID/SFX + token/key all in the QUERY STRING.
-    const postUrl = h.fetchCalls[2].url;
+    const postUrl = h.fetchCalls[1].url;
     expect(postUrl).toContain(
       "ttranslatev3?isVertical=1&IG=CE47A2D005A84FF09AA51E7D3B6C25F1",
     );
@@ -378,7 +379,7 @@ describe("engine wire contracts", () => {
     expect(postUrl).toContain("token=abuseToken123");
     expect(postUrl).toContain("key=1690000000000");
     // Body carries only the translation payload — auth never rides in the body.
-    const body = new URLSearchParams(h.fetchCalls[2].body);
+    const body = new URLSearchParams(h.fetchCalls[1].body);
     expect(body.get("to")).toBe("zh-Hans"); // zh-CN mapped to Bing web id
     // Live endpoint rejects fromLang=auto ({"statusCode":400}); an EXPLICIT
     // "auto" is mapped to "auto-detect" by toBingWebLang. This fallback chain
@@ -393,7 +394,7 @@ describe("engine wire contracts", () => {
 
   it("bing web rejection (statusCode 400) refreshes the session and retries once", async () => {
     resetBingWebSession();
-    setPrefs({ "translate.engineType": "google" });
+    setPrefs({ "translate.engineType": "bing-web" });
     route("translate_a/single", () =>
       jsonResponse({ message: "blocked" }, false, 500, "Internal Server Error"),
     );
@@ -436,7 +437,7 @@ describe("engine wire contracts", () => {
     expect(lastUrl.searchParams.get("SFX")).toBe("0");
   });
 
-  it("unreachable Google AND Bing surfaces a combined error", async () => {
+  it("Google failure stays on the chosen provider and never contacts Bing", async () => {
     setPrefs({ "translate.engineType": "google" });
     route("translate_a/single", () =>
       jsonResponse({}, false, 429, "Too Many Requests"),
@@ -450,7 +451,7 @@ describe("engine wire contracts", () => {
 
     const t = createTranslator("zh-CN");
     await expect(t("hello", "zh-CN")).rejects.toThrow(
-      /translation-error-google-fallback-failed/,
+      /HTTP 429/,
     );
   });
 
@@ -954,7 +955,7 @@ describe("translation cache", () => {
     expect(h.fetchCalls).toHaveLength(2);
   });
 
-  it("texts over 5000 chars bypass the cache entirely", async () => {
+  it("long texts are split within provider limits and subsequent calls use the cache", async () => {
     setPrefs({ "translate.engineType": "google" });
     googleRoute();
     const t = createTranslator("zh-CN");
@@ -968,6 +969,7 @@ describe("translation cache", () => {
     setPrefs({
       "translate.engineType": "google",
       "translate.google.apiKey": "key-AAAAAA",
+      "translate.credentialsRevision": "revision-A",
     });
     route("language/translate/v2", () =>
       jsonResponse({ data: { translations: [{ translatedText: "x" }] } }),
@@ -981,6 +983,7 @@ describe("translation cache", () => {
     setPrefs({
       "translate.engineType": "google",
       "translate.google.apiKey": "key-BBBBBB",
+      "translate.credentialsRevision": "revision-B",
     });
     const t2 = createTranslator("zh-CN");
     await t2("text", "zh-CN");

@@ -113,7 +113,7 @@ export class ReadAloudController {
       this.paused = true;
       this.emit();
     } catch (e) {
-      safeDebug("[Z-Transplit] readAloud pause: " + e);
+      safeDebug("[文献译读] readAloud pause: " + e);
     }
   }
 
@@ -124,7 +124,7 @@ export class ReadAloudController {
       this.paused = false;
       this.emit();
     } catch (e) {
-      safeDebug("[Z-Transplit] readAloud resume: " + e);
+      safeDebug("[文献译读] readAloud resume: " + e);
     }
   }
 
@@ -244,7 +244,7 @@ export class ReadAloudController {
     try {
       this.opts.onSentenceStart?.(this.index, segment);
     } catch (e) {
-      safeDebug("[Z-Transplit] readAloud onSentenceStart hook failed: " + e);
+      safeDebug("[文献译读] readAloud onSentenceStart hook failed: " + e);
     }
     try {
       const win = this.opts.getWin();
@@ -280,7 +280,7 @@ export class ReadAloudController {
         if (utterance !== this.currentUtterance || this.stopping) return;
         // "interrupted"/"canceled" errors accompany cancel() — not failures.
         if (ev?.error === "interrupted" || ev?.error === "canceled") return;
-        safeDebug("[Z-Transplit] readAloud utterance error: " + (ev?.error || ev));
+        safeDebug("[文献译读] readAloud utterance error: " + (ev?.error || ev));
         // Skip the broken sentence instead of stalling.
         if (this.index + 1 >= this.segments.length) {
           this.stopInternal(true);
@@ -290,7 +290,7 @@ export class ReadAloudController {
       };
       synth.speak(utterance);
     } catch (e) {
-      safeDebug("[Z-Transplit] readAloud speak failed: " + e);
+      safeDebug("[文献译读] readAloud speak failed: " + e);
       this.stopInternal(true);
     }
   }

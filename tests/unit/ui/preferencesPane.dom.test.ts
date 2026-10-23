@@ -18,26 +18,52 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { JSDOM } from "jsdom";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { validatePromptTemplate } from "../../../src/core/translation/promptTemplate";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const XHTML_FRAGMENT = readFileSync(join(ROOT, "addon/content/preferences.xhtml"), "utf8");
 const PREFS_JS = readFileSync(join(ROOT, "addon/content/preferences.js"), "utf8");
-const EN_FTL = readFileSync(join(ROOT, "addon/locale/en-US/ztransplit-preferences.ftl"), "utf8");
-const ZH_FTL = readFileSync(join(ROOT, "addon/locale/zh-CN/ztransplit-preferences.ftl"), "utf8");
+const EN_FTL = readFileSync(join(ROOT, "addon/locale/en-US/wenxianyidu-preferences.ftl"), "utf8");
+const ZH_FTL = readFileSync(join(ROOT, "addon/locale/zh-CN/wenxianyidu-preferences.ftl"), "utf8");
 
 // The shipped fragment deliberately declares no namespaces: Zotero parses it
 // through Zotero_Preferences._loadPane's defaultXUL branch, which supplies the
 // XUL default namespace and the html: prefix. The test reproduces exactly that
 // context by wrapping the fragment in a root that binds both. The fragment's
 // own `<?xml?>` declaration is dropped — it may only stand at document start.
-const XHTML = `<ztransplit-pane-root
+const XHTML = `<wenxianyidu-pane-root
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
   xmlns:html="http://www.w3.org/1999/xhtml"
->${XHTML_FRAGMENT.replace(/^<\?xml[^>]*\?>/, "")}</ztransplit-pane-root>`;
+>${XHTML_FRAGMENT.replace(/^<\?xml[^>]*\?>/, "")}</wenxianyidu-pane-root>`;
 
-const PREFIX = "extensions.zotero.ztransplit.";
+const PREFIX = "extensions.zotero.wenxianyidu.";
+
+describe("model picker preserves manual configuration", () => {
+  it("fetches using draft endpoint and key, searches, and changes the model only after a selection", async () => {
+    const listModels = vi.fn(async () => ["alpha-1", "beta-2"]);
+    const h = setupHarness({ bridge: { translation: { listModels }, credentials: { get: () => "", set: async () => {} } } });
+    const model = h.doc.getElementById("wenxianyidu-pref-ai-model"), endpoint = h.doc.getElementById("wenxianyidu-pref-ai-url"), key = h.doc.getElementById("wenxianyidu-pref-ai-key");
+    model.value = "manual-model"; endpoint.value = "https://gateway.example/custom/chat/completions"; key.value = "current-draft";
+    h.doc.getElementById("wenxianyidu-pref-ai-models-fetch").dispatchEvent(new h.window.Event("command"));
+    await vi.waitFor(() => expect(listModels).toHaveBeenCalledOnce());
+    expect(listModels.mock.calls[0][0]).toMatchObject({ apiUrl: endpoint.value, apiKey: "current-draft" });
+    expect(model.value).toBe("manual-model");
+    const search = h.doc.getElementById("wenxianyidu-pref-ai-models-search"), list = h.doc.getElementById("wenxianyidu-pref-ai-models-list");
+    search.value = "beta"; search.dispatchEvent(new h.window.Event("input"));
+    expect([...list.options].map((o: any) => o.value)).toEqual(["beta-2"]);
+    list.value = "beta-2"; list.dispatchEvent(new h.window.Event("change"));
+    expect(model.value).toBe("beta-2"); expect(h.prefs.get(PREFIX + "translate.ai.model")).toBe("beta-2");
+    h.dom.window.close();
+  });
+  it("a failed list fetch leaves the manually entered model untouched", async () => {
+    const h = setupHarness({ bridge: { translation: { listModels: async () => { throw Error("HTTP 401"); } }, credentials: { get: () => "" } } });
+    const model = h.doc.getElementById("wenxianyidu-pref-ai-model"); model.value = "keep-model";
+    h.doc.getElementById("wenxianyidu-pref-ai-models-fetch").dispatchEvent(new h.window.Event("command"));
+    await vi.waitFor(() => expect(h.doc.getElementById("wenxianyidu-pref-ai-models-status").textContent).toContain("401"));
+    expect(model.value).toBe("keep-model"); h.dom.window.close();
+  });
+});
 
 interface Harness {
   dom: JSDOM;
@@ -49,8 +75,8 @@ interface Harness {
   prefs: Map<string, unknown>;
 }
 
-function setupHarness(opts: { pdfTranslate?: boolean; prefs?: Record<string, unknown> } = {}): Harness {
-  const dom = new JSDOM(XHTML, { contentType: "text/xml", url: "chrome://ztransplit/content/preferences.xhtml" });
+function setupHarness(opts: { pdfTranslate?: boolean; prefs?: Record<string, unknown>; bridge?: any } = {}): Harness {
+  const dom = new JSDOM(XHTML, { contentType: "text/xml", url: "chrome://wenxianyidu/content/preferences.xhtml" });
   const { window } = dom;
   const prefs = new Map<string, unknown>(Object.entries(opts.prefs ?? {}));
 
@@ -63,6 +89,7 @@ function setupHarness(opts: { pdfTranslate?: boolean; prefs?: Record<string, unk
       },
     },
     DataDirectory: { dir: "/tmp/zotero-data" },
+    WenxianYidu: opts.bridge,
     PDFTranslate: opts.pdfTranslate
       ? { api: { translate: async () => ({ status: "success", result: "x" }) } }
       : null,
@@ -77,7 +104,7 @@ function setupHarness(opts: { pdfTranslate?: boolean; prefs?: Record<string, unk
     `(function (window, document, Zotero) {\n${PREFS_JS}\n})`,
   ) as (w: unknown, d: unknown, z: unknown) => void;
   evalPaneScript(window, window.document, (window as any).Zotero);
-  (window as any).ZTransplitPrefs.onLoad();
+  (window as any).WenxianYiduPrefs.onLoad();
 
   const doc = window.document;
   return {
@@ -86,7 +113,7 @@ function setupHarness(opts: { pdfTranslate?: boolean; prefs?: Record<string, unk
     doc,
     prefs,
     selectEngine(value: string) {
-      const list = doc.getElementById("ztransplit-pref-engine-type");
+      const list = doc.getElementById("wenxianyidu-pref-engine-type");
       if (!list) throw new Error("engine menulist not found");
       list.value = value;
       for (const type of ["select", "command"]) {
@@ -95,6 +122,64 @@ function setupHarness(opts: { pdfTranslate?: boolean; prefs?: Record<string, unk
     },
   };
 }
+
+describe("文献译读设置：安全凭据与接口测试", () => {
+  let h: Harness;
+  afterEach(() => h?.dom.window.close());
+  it("所有密钥字段只绑定安全存储，编辑不写普通偏好", async () => {
+    const writes: Array<[string,string]> = [];
+    h = setupHarness({ bridge: { credentials: { get: () => "", set: async (key: string, value: string) => { writes.push([key,value]); } } } });
+    const fields = [...h.doc.querySelectorAll("[data-secret-pref]")];
+    expect(fields.length).toBeGreaterThan(5);
+    expect(fields.every((field: any) => !field.hasAttribute("preference"))).toBe(true);
+    fireInputAndChange(h, "wenxianyidu-pref-niutrans-key", "private-test-key");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(writes).toEqual([["translate.niutrans.apiKey", "private-test-key"]]);
+    expect([...h.prefs.values()]).not.toContain("private-test-key");
+  });
+  it("测试当前官方接口时不重写或清除其他引擎密钥", async () => {
+    const writes: string[] = [];
+    h = setupHarness({ bridge: {
+      credentials: { get: () => "existing", set: async (key: string) => { writes.push(key); } },
+      translation: { testConnection: async () => ({ success: true, text: "中文" }) },
+    } });
+    h.selectEngine("niutrans");
+    await h.window.WenxianYiduPrefs.testConnection();
+    expect(writes).toEqual(["translate.niutrans.apiKey"]);
+    expect(h.doc.getElementById("wenxianyidu-pref-connection-status")!.textContent).toContain("连接成功");
+  });
+  it("免密钥试译不依赖系统密钥存储", async () => {
+    let called = false;
+    h = setupHarness({ bridge: { translation: { testConnection: async () => { called = true; return { success: true, text: "中文" }; } } } });
+    h.selectEngine("youdao"); await h.window.WenxianYiduPrefs.testConnection();
+    expect(called).toBe(true);
+    expect(h.doc.getElementById("wenxianyidu-pref-connection-status")!.textContent).toContain("连接成功");
+  });
+  it("读取安全存储失败时不会把空输入写回覆盖已有凭据", async () => {
+    let written = false, called = false;
+    h = setupHarness({ bridge: {
+      credentials: { get: () => { throw new Error("locked"); }, set: async () => { written = true; } },
+      translation: { testConnection: async () => { called = true; return { success: true }; } },
+    } });
+    h.selectEngine("niutrans"); await h.window.WenxianYiduPrefs.testConnection();
+    expect(written).toBe(false); expect(called).toBe(false);
+    expect(h.doc.getElementById("wenxianyidu-pref-connection-status")!.textContent).toContain("无法读取本机安全存储");
+  });
+  it("接口地址中的密钥不会被写进普通偏好设置", () => {
+    const fieldID = "wenxianyidu-pref-ai-url";
+    const pref = `${PREFIX}translate.ai.apiUrl`;
+    h = setupHarness({ prefs: { [pref]: "https://api.example.com/v1" } });
+    fireInputAndChange(h, fieldID, "https://api.example.com/v1?api_key=private-key");
+    expect(h.prefs.get(pref)).toBe("https://api.example.com/v1");
+    expect(h.doc.getElementById(fieldID)!.getAttribute("aria-invalid")).toBe("true");
+    fireInputAndChange(h, fieldID, "https://private-key@api.example.com/v1");
+    expect(h.prefs.get(pref)).toBe("https://api.example.com/v1");
+    expect([...h.prefs.values()].join(" ")).not.toContain("private-key");
+    fireInputAndChange(h, fieldID, "http://127.0.0.1:11434/v1");
+    expect(h.prefs.get(pref)).toBe("http://127.0.0.1:11434/v1");
+    expect(h.doc.getElementById(fieldID)!.hasAttribute("aria-invalid")).toBe(false);
+  });
+});
 
 function isVisible(doc: any, id: string): boolean {
   const el = doc.getElementById(id);
@@ -145,43 +230,43 @@ describe("B17 设置 pane：引擎字段条件显隐", () => {
 
   it("默认（google）只显示 Google 字段组，其余隐藏", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.engineType`]: "google" } });
-    expect(isVisible(h.doc, "ztransplit-pref-engine-google")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-bing")).toBe(false);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-deepl")).toBe(false);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-custom")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-google")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-bing")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-deepl")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-custom")).toBe(false);
   });
 
   it("menulist 缺 value 时回退读取 translate.engineType 偏好", () => {
     // 不预设 engineType：jsdom 里 menulist.value 为空 → 代码回退到 pref 回退链
     h = setupHarness({ prefs: { [`${PREFIX}translate.engineType`]: "deepl" } });
-    expect(isVisible(h.doc, "ztransplit-pref-engine-deepl")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-google")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-deepl")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-google")).toBe(false);
   });
 
   it("切换到 bing：显示 Bing 组并隐藏 Google 组（只切 hidden，不重建 DOM）", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.engineType`]: "google" } });
-    const before = h.doc.getElementById("ztransplit-pref-engine-bing");
+    const before = h.doc.getElementById("wenxianyidu-pref-engine-bing");
     h.selectEngine("bing");
-    expect(isVisible(h.doc, "ztransplit-pref-engine-bing")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-google")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-bing")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-google")).toBe(false);
     // 同一节点被显隐，没有被替换
-    expect(h.doc.getElementById("ztransplit-pref-engine-bing")).toBe(before);
+    expect(h.doc.getElementById("wenxianyidu-pref-engine-bing")).toBe(before);
   });
 
   it("切换到 custom：显示 OpenAI 兼容端点字段组", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.engineType`]: "google" } });
     h.selectEngine("custom");
-    expect(isVisible(h.doc, "ztransplit-pref-engine-custom")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-google")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-custom")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-google")).toBe(false);
   });
 
   it("切换到 ai：显示 AI 字段组（含 prompt 模板编辑区）", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.engineType`]: "google" } });
     h.selectEngine("ai");
-    expect(isVisible(h.doc, "ztransplit-pref-engine-ai")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-engine-google")).toBe(false);
-    expect(h.doc.getElementById("ztransplit-pref-ai-prompt")).toBeTruthy();
-    expect(h.doc.getElementById("ztransplit-pref-ai-prompt-restore")).toBeTruthy();
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-ai")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-engine-google")).toBe(false);
+    expect(h.doc.getElementById("wenxianyidu-pref-ai-prompt")).toBeTruthy();
+    expect(h.doc.getElementById("wenxianyidu-pref-ai-prompt-restore")).toBeTruthy();
   });
 });
 
@@ -196,44 +281,44 @@ describe("B17 设置 pane：AI prompt 模板校验（prefs-AI1..AI4）", () => {
 
   it("初始值来自偏好写入模板编辑区", () => {
     h = setupHarness({ prefs: { [AI_PROMPT_KEY]: VALID } });
-    expect(String(h.doc.getElementById("ztransplit-pref-ai-prompt").value)).toBe(
+    expect(String(h.doc.getElementById("wenxianyidu-pref-ai-prompt").value)).toBe(
       VALID,
     );
   });
 
   it("留空（内置默认模板）是合法初始态：无错误提示", () => {
     h = setupHarness({ prefs: {} });
-    expect(String(h.doc.getElementById("ztransplit-pref-ai-prompt").value)).toBe("");
-    expect(isVisible(h.doc, "ztransplit-pref-ai-prompt-error")).toBe(false);
+    expect(String(h.doc.getElementById("wenxianyidu-pref-ai-prompt").value)).toBe("");
+    expect(isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error")).toBe(false);
   });
 
   it("合法模板：错误提示隐藏，值写回偏好", () => {
     h = setupHarness({ prefs: { [AI_PROMPT_KEY]: "" } });
-    const input = h.doc.getElementById("ztransplit-pref-ai-prompt");
+    const input = h.doc.getElementById("wenxianyidu-pref-ai-prompt");
     input.value = VALID;
     input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
-    expect(isVisible(h.doc, "ztransplit-pref-ai-prompt-error")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error")).toBe(false);
     expect(h.prefs.get(AI_PROMPT_KEY)).toBe(VALID);
   });
 
   it("非法模板：显示对应原因的不落地提示，且不写坏值", () => {
     h = setupHarness({ prefs: { [AI_PROMPT_KEY]: VALID } });
-    const input = h.doc.getElementById("ztransplit-pref-ai-prompt");
+    const input = h.doc.getElementById("wenxianyidu-pref-ai-prompt");
     input.value = "从 {{sourceLang}} 译到 {{targetLang}}：{{txt}}";
     input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
-    expect(isVisible(h.doc, "ztransplit-pref-ai-prompt-error")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error")).toBe(true);
     // 半成品值不得落进 pref（与 maxChars 同一策略）
     expect(h.prefs.get(AI_PROMPT_KEY)).toBe(VALID);
     // 提示文案来自隐藏的本地化节点，不是 JS 写死的字符串
     const expected = h.doc
-      .getElementById("ztransplit-pref-string-ai-prompt-unknown-placeholder")
+      .getElementById("wenxianyidu-pref-string-ai-prompt-unknown-placeholder")
       .textContent.trim();
     expect(
-      h.doc.getElementById("ztransplit-pref-ai-prompt-error").textContent.trim(),
+      h.doc.getElementById("wenxianyidu-pref-ai-prompt-error").textContent.trim(),
     ).toBe(expected);
     expect(expected.length).toBeGreaterThan(0);
     expect(
-      h.doc.getElementById("ztransplit-pref-ai-prompt").getAttribute("aria-invalid"),
+      h.doc.getElementById("wenxianyidu-pref-ai-prompt").getAttribute("aria-invalid"),
     ).toBe("true");
   });
 
@@ -245,39 +330,39 @@ describe("B17 设置 pane：AI prompt 模板校验（prefs-AI1..AI4）", () => {
     ["花括号不成对", "从 {{sourceLang}} 译到 {{targetLang}}：{{text}", "unbalanced-braces"],
   ])("非法模板 %s：提示 %s 原因且不写坏值", (_label, raw, reason) => {
     h = setupHarness({ prefs: { [AI_PROMPT_KEY]: VALID } });
-    const input = h.doc.getElementById("ztransplit-pref-ai-prompt");
+    const input = h.doc.getElementById("wenxianyidu-pref-ai-prompt");
     input.value = raw;
     input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
-    expect(isVisible(h.doc, "ztransplit-pref-ai-prompt-error")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error")).toBe(true);
     expect(h.prefs.get(AI_PROMPT_KEY)).toBe(VALID);
     const expected = h.doc
-      .getElementById(`ztransplit-pref-string-ai-prompt-${reason}`)
+      .getElementById(`wenxianyidu-pref-string-ai-prompt-${reason}`)
       .textContent.trim();
     expect(
-      h.doc.getElementById("ztransplit-pref-ai-prompt-error").textContent.trim(),
+      h.doc.getElementById("wenxianyidu-pref-ai-prompt-error").textContent.trim(),
     ).toBe(expected);
   });
 
   it("非法模板失焦：恢复当前 pref 值且不改写设置（与文案承诺一致）", () => {
     h = setupHarness({ prefs: { [AI_PROMPT_KEY]: VALID } });
-    const input = h.doc.getElementById("ztransplit-pref-ai-prompt");
+    const input = h.doc.getElementById("wenxianyidu-pref-ai-prompt");
     input.value = "broken {{txt}}";
     input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
     input.dispatchEvent(new h.window.Event("change", { bubbles: true }));
     expect(String(input.value)).toBe(VALID);
     expect(h.prefs.get(AI_PROMPT_KEY)).toBe(VALID);
-    expect(isVisible(h.doc, "ztransplit-pref-ai-prompt-error")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error")).toBe(false);
     expect(
-      h.doc.getElementById("ztransplit-pref-ai-prompt").getAttribute("aria-invalid"),
+      h.doc.getElementById("wenxianyidu-pref-ai-prompt").getAttribute("aria-invalid"),
     ).toBeNull();
   });
 
   it("「恢复默认模板」按钮：写空串（= 内置默认模板）并清空编辑区", () => {
     h = setupHarness({ prefs: { [AI_PROMPT_KEY]: VALID } });
-    (h.window as any).ZTransplitPrefs.restoreDefaultPrompt();
+    (h.window as any).WenxianYiduPrefs.restoreDefaultPrompt();
     expect(h.prefs.get(AI_PROMPT_KEY)).toBe("");
-    expect(String(h.doc.getElementById("ztransplit-pref-ai-prompt").value)).toBe("");
-    expect(isVisible(h.doc, "ztransplit-pref-ai-prompt-error")).toBe(false);
+    expect(String(h.doc.getElementById("wenxianyidu-pref-ai-prompt").value)).toBe("");
+    expect(isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error")).toBe(false);
   });
 
   it("面板 JS 的校验与 TS 权威实现同判（样例矩阵，含每种拒绝原因）", () => {
@@ -298,12 +383,12 @@ describe("B17 设置 pane：AI prompt 模板校验（prefs-AI1..AI4）", () => {
       ["超长", `x{{text}}${"y".repeat(4000)}`],
     ];
     h = setupHarness({ prefs: {} });
-    const input = h.doc.getElementById("ztransplit-pref-ai-prompt");
+    const input = h.doc.getElementById("wenxianyidu-pref-ai-prompt");
     for (const [label, raw] of samples) {
       const before = h.prefs.get(AI_PROMPT_KEY);
       input.value = raw;
       input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
-      const paneSaysValid = !isVisible(h.doc, "ztransplit-pref-ai-prompt-error");
+      const paneSaysValid = !isVisible(h.doc, "wenxianyidu-pref-ai-prompt-error");
       const tsSaysValid = validatePromptTemplate(raw).ok;
       expect(paneSaysValid, `样例「${label}」两边判定不一致`).toBe(tsSaysValid);
       // 合法才写回，非法则保持原值（半成品值不落盘）
@@ -320,17 +405,17 @@ describe("B17 设置 pane：zotero-pdf-translate 探测", () => {
 
   it("插件缺失：显示「未安装」提示，隐藏「已安装」提示，下拉项标注缺失文案", () => {
     h = setupHarness({ pdfTranslate: false });
-    expect(isVisible(h.doc, "ztransplit-pref-pdftranslate-missing")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-pdftranslate-installed")).toBe(false);
-    const item = h.doc.getElementById("ztransplit-pref-engine-item-pdftranslate");
+    expect(isVisible(h.doc, "wenxianyidu-pref-pdftranslate-missing")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-pdftranslate-installed")).toBe(false);
+    const item = h.doc.getElementById("wenxianyidu-pref-engine-item-pdftranslate");
     // 标签被同步为缺失文案（非空）
     expect(String(item.getAttribute("label") || "").length).toBeGreaterThan(0);
   });
 
   it("插件存在：显示「已安装」提示，隐藏「未安装」提示", () => {
     h = setupHarness({ pdfTranslate: true });
-    expect(isVisible(h.doc, "ztransplit-pref-pdftranslate-installed")).toBe(true);
-    expect(isVisible(h.doc, "ztransplit-pref-pdftranslate-missing")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-pdftranslate-installed")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-pdftranslate-missing")).toBe(false);
   });
 });
 
@@ -342,27 +427,27 @@ describe("B17 设置 pane：maxChars 校验", () => {
 
   it("初始值来自偏好并写入输入框", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.maxChars`]: 4321 } });
-    const input = h.doc.getElementById("ztransplit-pref-maxchars");
+    const input = h.doc.getElementById("wenxianyidu-pref-maxchars");
     expect(String(input.value)).toBe("4321");
   });
 
   it("越界输入：显示错误提示，不写坏值", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.maxChars`]: 10000 } });
-    const input = h.doc.getElementById("ztransplit-pref-maxchars");
+    const input = h.doc.getElementById("wenxianyidu-pref-maxchars");
     input.value = "999999"; // 超过 50000 上限
     input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
-    expect(isVisible(h.doc, "ztransplit-pref-maxchars-error")).toBe(true);
+    expect(isVisible(h.doc, "wenxianyidu-pref-maxchars-error")).toBe(true);
     // 坏值不得落进 pref
     expect(h.prefs.get(`${PREFIX}translate.maxChars`)).toBe(10000);
   });
 
   it("合法输入：错误提示隐藏，值写回偏好", () => {
     h = setupHarness({ prefs: { [`${PREFIX}translate.maxChars`]: 10000 } });
-    const input = h.doc.getElementById("ztransplit-pref-maxchars");
+    const input = h.doc.getElementById("wenxianyidu-pref-maxchars");
     input.value = "20000";
     input.dispatchEvent(new h.window.Event("input", { bubbles: true }));
     input.dispatchEvent(new h.window.Event("change", { bubbles: true }));
-    expect(isVisible(h.doc, "ztransplit-pref-maxchars-error")).toBe(false);
+    expect(isVisible(h.doc, "wenxianyidu-pref-maxchars-error")).toBe(false);
     expect(h.prefs.get(`${PREFIX}translate.maxChars`)).toBe(20000);
   });
 });
@@ -379,11 +464,11 @@ describe("B17 设置 pane：maxChars 失焦恢复（prefs-F4）", () => {
     "非法值 %s 失焦后恢复旧值且不改写偏好",
     (raw) => {
       h = setupHarness({ prefs: { [`${PREFIX}translate.maxChars`]: 10000 } });
-      const input = fireInputAndChange(h, "ztransplit-pref-maxchars", raw);
+      const input = fireInputAndChange(h, "wenxianyidu-pref-maxchars", raw);
       expect(String(input.value)).toBe("10000");
       expect(h.prefs.get(`${PREFIX}translate.maxChars`)).toBe(10000);
       // 恢复后错误提示隐藏
-      expect(isVisible(h.doc, "ztransplit-pref-maxchars-error")).toBe(false);
+      expect(isVisible(h.doc, "wenxianyidu-pref-maxchars-error")).toBe(false);
     },
   );
 });
@@ -398,8 +483,8 @@ describe("B17 设置 pane：ODL timeout 校验（prefs-F5）", () => {
     h = setupHarness({
       prefs: { [`${PREFIX}pdfParser.opendataloader.timeout`]: 300 },
     });
-    const input = fireInputAndChange(h, "ztransplit-pref-odl-timeout", "600");
-    expect(isVisible(h.doc, "ztransplit-pref-odl-timeout-error")).toBe(false);
+    const input = fireInputAndChange(h, "wenxianyidu-pref-odl-timeout", "600");
+    expect(isVisible(h.doc, "wenxianyidu-pref-odl-timeout-error")).toBe(false);
     expect(h.prefs.get(`${PREFIX}pdfParser.opendataloader.timeout`)).toBe(600);
     expect(String(input.value)).toBe("600");
   });
@@ -410,10 +495,10 @@ describe("B17 设置 pane：ODL timeout 校验（prefs-F5）", () => {
       h = setupHarness({
         prefs: { [`${PREFIX}pdfParser.opendataloader.timeout`]: 300 },
       });
-      const input = fireInputAndChange(h, "ztransplit-pref-odl-timeout", raw);
+      const input = fireInputAndChange(h, "wenxianyidu-pref-odl-timeout", raw);
       expect(String(input.value)).toBe("300");
       expect(h.prefs.get(`${PREFIX}pdfParser.opendataloader.timeout`)).toBe(300);
-      expect(isVisible(h.doc, "ztransplit-pref-odl-timeout-error")).toBe(false);
+      expect(isVisible(h.doc, "wenxianyidu-pref-odl-timeout-error")).toBe(false);
     },
   );
 });
@@ -452,7 +537,7 @@ describe("B17 设置 pane：FTL 消息形式与 xhtml 控件匹配（prefs-F1/F2
 
   it("带静态 value 的 XUL label 两语言都写 .value（纯文本只写 textContent，替换不了 value）", () => {
     const labels = l10nBindings().filter((r) => r.tag === "label" && r.hasValue);
-    // 24 = 23 原有 + 解析组件小节的行标签（preferences-ztransplit-pdf-odl-comp）。
+    // 24 = 23 原有 + 解析组件小节的行标签（preferences-wenxianyidu-pdf-odl-comp）。
     expect(labels.length).toBe(24);
     for (const row of labels) {
       expect(enFtl.get(row.id)!.has("value"), `en-US ${row.id} 应写 .value`).toBe(true);
@@ -460,9 +545,9 @@ describe("B17 设置 pane：FTL 消息形式与 xhtml 控件匹配（prefs-F1/F2
     }
   });
 
-  it("12 个 menuitem 两语言都写 .label（XUL menuitem 只渲染 label 属性）", () => {
+  it("13 个 menuitem 两语言都写 .label（XUL menuitem 只渲染 label 属性）", () => {
     const items = l10nBindings().filter((r) => r.tag === "menuitem");
-    expect(items.length).toBe(12);
+    expect(items.length).toBe(13);
     for (const row of items) {
       expect(enFtl.get(row.id)!.has("label"), `en-US ${row.id} 应写 .label`).toBe(true);
       expect(zhFtl.get(row.id)!.has("label"), `zh-CN ${row.id} 应写 .label`).toBe(true);
@@ -471,7 +556,7 @@ describe("B17 设置 pane：FTL 消息形式与 xhtml 控件匹配（prefs-F1/F2
 
   it("checkbox 两语言都写 .label", () => {
     const boxes = l10nBindings().filter((r) => r.tag === "checkbox");
-    // 13 = 11 原有 + 词卡开关 + 原文删除开关（preferences-ztransplit-pdf-removal-enabled）。
+    // 13 = 11 原有 + 词卡开关 + 原文删除开关（preferences-wenxianyidu-pdf-removal-enabled）。
     expect(boxes.length).toBe(13);
     for (const row of boxes) {
       expect(enFtl.get(row.id)!.has("label"), `en-US ${row.id} 应写 .label`).toBe(true);
@@ -483,7 +568,7 @@ describe("B17 设置 pane：FTL 消息形式与 xhtml 控件匹配（prefs-F1/F2
 describe("B17 设置 pane：PDF 字体覆盖目录回显", () => {
   it("assetsDir 把数据目录写进提示节点", () => {
     const h = setupHarness({});
-    const node = h.doc.getElementById("ztransplit-pref-pdf-fonts-path");
+    const node = h.doc.getElementById("wenxianyidu-pref-pdf-fonts-path");
     expect(node).toBeTruthy();
     expect(String(node.textContent)).toContain("zotero-data");
     h.dom.window.close();
@@ -493,7 +578,7 @@ describe("B17 设置 pane：PDF 字体覆盖目录回显", () => {
 // ── Java 运行库：状态检测 + 安装/修复按钮 ─────────────────────────────────
 //
 // 修复「一次 Java 安装失败后全插件无入口可用」时加入的主动入口。面板通过
-// Zotero.ZTransplit.java（主包暴露）检测与安装；这里用桩验证回显与按钮态。
+// Zotero.WenxianYidu.java（主包暴露）检测与安装；这里用桩验证回显与按钮态。
 
 type JavaStatusStub = {
   ready: boolean;
@@ -513,7 +598,7 @@ function setupJavaHarness(java?: {
 }): JavaHarness {
   const h = setupHarness({});
   const zt = (h.window as any).Zotero;
-  zt.ZTransplit = java ? { java } : undefined;
+  zt.WenxianYidu = java ? { java } : undefined;
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
   return {
     ...h,
@@ -531,8 +616,8 @@ function setupJavaHarness(java?: {
 describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
   it("主包未挂载：点击检测显示引导文案，不抛错", async () => {
     const h = setupJavaHarness(undefined);
-    await h.clickJava("ztransplit-pref-pdf-java-check");
-    const status = h.doc.getElementById("ztransplit-pref-pdf-java-status")!;
+    await h.clickJava("wenxianyidu-pref-pdf-java-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-pdf-java-status")!;
     expect(String(status.textContent)).toContain("插件主包未加载");
     h.dom.window.close();
   });
@@ -545,8 +630,8 @@ describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
         managed: true,
       }),
     });
-    await h.clickJava("ztransplit-pref-pdf-java-check");
-    const status = h.doc.getElementById("ztransplit-pref-pdf-java-status")!;
+    await h.clickJava("wenxianyidu-pref-pdf-java-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-pdf-java-status")!;
     expect(String(status.textContent)).toContain("17.0.12");
     expect(String(status.textContent)).toContain("插件管理");
     h.dom.window.close();
@@ -556,8 +641,8 @@ describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
     const h = setupJavaHarness({
       getStatus: async () => ({ ready: true, version: "21.0.1", managed: false }),
     });
-    await h.clickJava("ztransplit-pref-pdf-java-check");
-    const status = h.doc.getElementById("ztransplit-pref-pdf-java-status")!;
+    await h.clickJava("wenxianyidu-pref-pdf-java-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-pdf-java-status")!;
     expect(String(status.textContent)).toContain("21.0.1");
     expect(String(status.textContent)).toContain("系统安装");
     h.dom.window.close();
@@ -570,8 +655,8 @@ describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
         error: "Java runtime not found. Please install Java 11+ …",
       }),
     });
-    await h.clickJava("ztransplit-pref-pdf-java-check");
-    const status = h.doc.getElementById("ztransplit-pref-pdf-java-status")!;
+    await h.clickJava("wenxianyidu-pref-pdf-java-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-pdf-java-status")!;
     expect(String(status.textContent)).toContain("未检测到");
     expect(String(status.textContent)).not.toContain("Please install");
     h.dom.window.close();
@@ -589,11 +674,11 @@ describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
         return true;
       },
     });
-    const installBtn = h.doc.getElementById("ztransplit-pref-pdf-java-install")!;
-    await h.clickJava("ztransplit-pref-pdf-java-install");
+    const installBtn = h.doc.getElementById("wenxianyidu-pref-pdf-java-install")!;
+    await h.clickJava("wenxianyidu-pref-pdf-java-install");
     expect(installed).toBe(true);
     expect(installBtn.hasAttribute("disabled")).toBe(false);
-    const status = h.doc.getElementById("ztransplit-pref-pdf-java-status")!;
+    const status = h.doc.getElementById("wenxianyidu-pref-pdf-java-status")!;
     expect(String(status.textContent)).toContain("17.0.12");
     h.dom.window.close();
   });
@@ -603,10 +688,10 @@ describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
       getStatus: async () => ({ ready: false }),
       install: async () => false,
     });
-    const installBtn = h.doc.getElementById("ztransplit-pref-pdf-java-install")!;
-    await h.clickJava("ztransplit-pref-pdf-java-install");
+    const installBtn = h.doc.getElementById("wenxianyidu-pref-pdf-java-install")!;
+    await h.clickJava("wenxianyidu-pref-pdf-java-install");
     expect(installBtn.hasAttribute("disabled")).toBe(false);
-    const status = h.doc.getElementById("ztransplit-pref-pdf-java-status")!;
+    const status = h.doc.getElementById("wenxianyidu-pref-pdf-java-status")!;
     expect(String(status.textContent)).toContain("未检测到");
     h.dom.window.close();
   });
@@ -614,7 +699,7 @@ describe("B17 设置 pane：Java 运行库状态行与按钮", () => {
 
 // ── 解析组件：状态检测 + 下载/修复按钮 ─────────────────────────────────────
 //
-// 与 Java 小节同一套路：面板通过 Zotero.ZTransplit.odlJar（主包暴露）检测与
+// 与 Java 小节同一套路：面板通过 Zotero.WenxianYidu.odlJar（主包暴露）检测与
 // 下载修复；这里用桩验证回显与按钮态。这一节是「精简版升级后组件缺失仍提示
 // 重新安装插件」的手动出口：按钮必须存在、失败必须把细节上墙。
 
@@ -637,7 +722,7 @@ function setupOdlHarness(odl?: {
 }): OdlHarness {
   const h = setupHarness({});
   const zt = (h.window as any).Zotero;
-  zt.ZTransplit = odl ? { odlJar: odl } : undefined;
+  zt.WenxianYidu = odl ? { odlJar: odl } : undefined;
   const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
   return {
     ...h,
@@ -655,8 +740,8 @@ function setupOdlHarness(odl?: {
 describe("B17 设置 pane：解析组件状态行与按钮", () => {
   it("主包未挂载：点击检测显示引导文案，不抛错", async () => {
     const h = setupOdlHarness(undefined);
-    await h.clickOdl("ztransplit-pref-odl-comp-check");
-    const status = h.doc.getElementById("ztransplit-pref-odl-comp-status")!;
+    await h.clickOdl("wenxianyidu-pref-odl-comp-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-odl-comp-status")!;
     expect(String(status.textContent)).toContain("插件主包未加载");
     h.dom.window.close();
   });
@@ -667,11 +752,11 @@ describe("B17 设置 pane：解析组件状态行与按钮", () => {
         present: true,
         version: "2.5.0",
         source: "landed",
-        path: "/tmp/zotero-data/ztransplit/lib/opendataloader-pdf-cli.jar",
+        path: "/tmp/zotero-data/wenxianyidu/lib/opendataloader-pdf-cli.jar",
       }),
     });
-    await h.clickOdl("ztransplit-pref-odl-comp-check");
-    const status = h.doc.getElementById("ztransplit-pref-odl-comp-status")!;
+    await h.clickOdl("wenxianyidu-pref-odl-comp-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-odl-comp-status")!;
     expect(String(status.textContent)).toContain("2.5.0");
     expect(String(status.textContent)).toContain("数据目录");
     h.dom.window.close();
@@ -685,8 +770,8 @@ describe("B17 设置 pane：解析组件状态行与按钮", () => {
         source: "bundled",
       }),
     });
-    await h.clickOdl("ztransplit-pref-odl-comp-check");
-    const status = h.doc.getElementById("ztransplit-pref-odl-comp-status")!;
+    await h.clickOdl("wenxianyidu-pref-odl-comp-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-odl-comp-status")!;
     expect(String(status.textContent)).toContain("安装包内置");
     h.dom.window.close();
   });
@@ -695,8 +780,8 @@ describe("B17 设置 pane：解析组件状态行与按钮", () => {
     const h = setupOdlHarness({
       getStatus: async () => ({ present: false, version: "2.5.0" }),
     });
-    await h.clickOdl("ztransplit-pref-odl-comp-check");
-    const status = h.doc.getElementById("ztransplit-pref-odl-comp-status")!;
+    await h.clickOdl("wenxianyidu-pref-odl-comp-check");
+    const status = h.doc.getElementById("wenxianyidu-pref-odl-comp-status")!;
     expect(String(status.textContent)).toContain("未找到解析组件");
     h.dom.window.close();
   });
@@ -719,12 +804,12 @@ describe("B17 设置 pane：解析组件状态行与按钮", () => {
       },
     });
     const downloadBtn = h.doc.getElementById(
-      "ztransplit-pref-odl-comp-download",
+      "wenxianyidu-pref-odl-comp-download",
     )!;
-    await h.clickOdl("ztransplit-pref-odl-comp-download");
+    await h.clickOdl("wenxianyidu-pref-odl-comp-download");
     expect(installed).toBe(true);
     expect(downloadBtn.hasAttribute("disabled")).toBe(false);
-    const status = h.doc.getElementById("ztransplit-pref-odl-comp-status")!;
+    const status = h.doc.getElementById("wenxianyidu-pref-odl-comp-status")!;
     expect(String(status.textContent)).toContain("2.5.0");
     h.dom.window.close();
   });
@@ -736,8 +821,8 @@ describe("B17 设置 pane：解析组件状态行与按钮", () => {
         throw new Error("ODL jar provision failed: no mirror reachable");
       },
     });
-    await h.clickOdl("ztransplit-pref-odl-comp-download");
-    const status = h.doc.getElementById("ztransplit-pref-odl-comp-status")!;
+    await h.clickOdl("wenxianyidu-pref-odl-comp-download");
+    const status = h.doc.getElementById("wenxianyidu-pref-odl-comp-status")!;
     expect(String(status.textContent)).toContain("下载失败");
     expect(String(status.textContent)).toContain("no mirror reachable");
     h.dom.window.close();

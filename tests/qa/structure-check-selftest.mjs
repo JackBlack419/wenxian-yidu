@@ -10,25 +10,26 @@
  *
  *   node structure-check-selftest.mjs
  */
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CHECKER = join(HERE, "..", "..", "scripts", "structure-check.mjs");
-const FIXTURES = join(HERE, "fixtures");
+const FIXTURES = mkdtempSync(join(tmpdir(), "wenxianyidu-structure-"));
 
 const PKG = JSON.stringify(
   {
     name: "z-transplit",
     version: "0.1.0",
     config: {
-      addonName: "Z-Transplit",
-      addonID: "ztransplit@zotero.org",
-      addonRef: "ztransplit",
-      addonInstance: "ZTransplit",
-      prefsPrefix: "extensions.zotero.ztransplit",
+      addonName: "文献译读",
+      addonID: "wenxianyidu@wenxianyidu.local",
+      addonRef: "wenxianyidu",
+      addonInstance: "WenxianYidu",
+      prefsPrefix: "extensions.zotero.wenxianyidu",
     },
   },
   null,
@@ -39,14 +40,14 @@ const MANIFEST = (icons, opts = {}) =>
   JSON.stringify(
     {
       manifest_version: 2,
-      name: "Z-Transplit",
+      name: "文献译读",
       version: opts.version ?? "0.1.0",
       description: "translate + split",
       author: "qa",
       applications: {
         zotero: {
           // Zotero 7: the addon id lives HERE, not at the manifest top level.
-          ...(opts.omitAppId ? {} : { id: "ztransplit@zotero.org" }),
+          ...(opts.omitAppId ? {} : { id: "wenxianyidu@wenxianyidu.local" }),
           strict_min_version: "7.0",
           strict_max_version: "7.*",
         },
@@ -58,11 +59,11 @@ const MANIFEST = (icons, opts = {}) =>
   );
 
 const PREFS_OK = `// defaults
-pref("extensions.zotero.ztransplit.translate.enabled", false);
-pref("extensions.zotero.ztransplit.translate.auto", false);
-pref("extensions.zotero.ztransplit.translate.maxChars", 10000);
-pref("extensions.zotero.ztransplit.translate.engineType", "google");
-pref("extensions.zotero.ztransplit.translate.google.apiKey", "");
+pref("extensions.zotero.wenxianyidu.translate.enabled", false);
+pref("extensions.zotero.wenxianyidu.translate.auto", false);
+pref("extensions.zotero.wenxianyidu.translate.maxChars", 10000);
+pref("extensions.zotero.wenxianyidu.translate.engineType", "google");
+pref("extensions.zotero.wenxianyidu.translate.google.apiKey", "");
 `;
 
 const SRC_OK = `import { getString } from "../utils/locale";
@@ -73,7 +74,7 @@ export const AUTO = getPref("translate.auto");
 export const MAX = getPrefDynamic("translate.maxChars");
 export const ENGINE = getPrefDynamic("translate.engineType");
 export const GKEY = getPrefDynamic("translate.google.apiKey");
-export const ICON = "chrome://ztransplit/content/icons/translate.svg";
+export const ICON = "chrome://wenxianyidu/content/icons/translate.svg";
 `;
 
 const FTL_OK = `pane-translate-action = 翻译
@@ -99,16 +100,16 @@ function buildGoodPlugin(root, opts = {}) {
     "addon/manifest.json",
     manifest ??
       MANIFEST({
-        "48": "chrome://ztransplit/content/icons/ztransplit-light.svg",
-        "48_dark": "chrome://ztransplit/content/icons/ztransplit-dark.svg",
+        "48": "chrome://wenxianyidu/content/icons/wenxianyidu-light.svg",
+        "48_dark": "chrome://wenxianyidu/content/icons/wenxianyidu-dark.svg",
       }),
   );
   write(root, "addon/prefs.js", prefs ?? PREFS_OK);
   write(root, "src/core/translation/engine.ts", src ?? SRC_OK);
-  write(root, "addon/locale/en-US/ztransplit.ftl", ftl ?? FTL_OK);
+  write(root, "addon/locale/en-US/wenxianyidu.ftl", ftl ?? FTL_OK);
   if (!skipIcons) {
-    write(root, "addon/content/icons/ztransplit-light.svg", SVG_EXPLICIT);
-    write(root, "addon/content/icons/ztransplit-dark.svg", SVG_EXPLICIT);
+    write(root, "addon/content/icons/wenxianyidu-light.svg", SVG_EXPLICIT);
+    write(root, "addon/content/icons/wenxianyidu-dark.svg", SVG_EXPLICIT);
     write(root, "addon/content/icons/translate.svg", SVG_CURRENT);
     write(root, "addon/content/icons/logo.svg", SVG_BRAND);
   }
@@ -150,7 +151,6 @@ function expect(name, actual, expected) {
   }
 }
 
-rmSync(FIXTURES, { recursive: true, force: true });
 const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S6: "PASS", S7: "PASS", S8: "PASS", S9: "PASS" };
 
 // 1. Clean plugin: everything passes.
@@ -177,7 +177,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
 {
   const root = join(FIXTURES, "missing-icon");
   buildGoodPlugin(root, {
-    manifest: MANIFEST({ 48: "chrome://ztransplit/content/icons/does-not-exist.svg" }),
+    manifest: MANIFEST({ 48: "chrome://wenxianyidu/content/icons/does-not-exist.svg" }),
   });
   expect("manifest 图标文件缺失 → S2 FAIL", runChecker(root), {
     ...ALL_PASS,
@@ -189,7 +189,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
 // 4. prefs.js syntax error → S3 FAIL, and S4 FAILs because defaults are unparseable.
 {
   const root = join(FIXTURES, "bad-prefs-syntax");
-  buildGoodPlugin(root, { prefs: `pref("extensions.zotero.ztransplit.translate.enabled", false)\nthis is not javascript` });
+  buildGoodPlugin(root, { prefs: `pref("extensions.zotero.wenxianyidu.translate.enabled", false)\nthis is not javascript` });
   expect("prefs.js 语法错误 → S3 FAIL（S4 连带）", runChecker(root), {
     ...ALL_PASS,
     S3: "FAIL",
@@ -219,7 +219,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
 {
   const root = join(FIXTURES, "broken-chrome-url");
   buildGoodPlugin(root, {
-    src: SRC_OK + `export const I = "chrome://ztransplit/content/icons/ghost.svg";\n`,
+    src: SRC_OK + `export const I = "chrome://wenxianyidu/content/icons/ghost.svg";\n`,
   });
   expect("chrome:// URL 指向缺失文件 → S6 FAIL", runChecker(root), { ...ALL_PASS, S6: "FAIL" });
 }
@@ -228,7 +228,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
 {
   const root = join(FIXTURES, "manifest-icon-currentcolor");
   buildGoodPlugin(root);
-  write(root, "addon/content/icons/ztransplit-light.svg", SVG_CURRENT);
+  write(root, "addon/content/icons/wenxianyidu-light.svg", SVG_CURRENT);
   expect("manifest 图标误用 currentColor → S7 FAIL", runChecker(root), { ...ALL_PASS, S7: "FAIL" });
 }
 
@@ -294,8 +294,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   buildGoodPlugin(root, {
     manifest: MANIFEST(
       {
-        "48": "chrome://ztransplit/content/icons/ztransplit-light.svg",
-        "48_dark": "chrome://ztransplit/content/icons/ztransplit-dark.svg",
+        "48": "chrome://wenxianyidu/content/icons/wenxianyidu-light.svg",
+        "48_dark": "chrome://wenxianyidu/content/icons/wenxianyidu-dark.svg",
       },
       { version: "9.9.9" },
     ),
@@ -309,8 +309,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   buildGoodPlugin(root, {
     manifest: MANIFEST(
       {
-        "48": "chrome://ztransplit/content/icons/ztransplit-light.svg",
-        "48_dark": "chrome://ztransplit/content/icons/ztransplit-dark.svg",
+        "48": "chrome://wenxianyidu/content/icons/wenxianyidu-light.svg",
+        "48_dark": "chrome://wenxianyidu/content/icons/wenxianyidu-dark.svg",
       },
       { omitAppId: true },
     ),
@@ -324,8 +324,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   const root = join(FIXTURES, "relative-icon-paths");
   buildGoodPlugin(root, {
     manifest: MANIFEST({
-      "48": "content/icons/ztransplit-light.svg",
-      "48_dark": "content/icons/ztransplit-dark.svg",
+      "48": "content/icons/wenxianyidu-light.svg",
+      "48_dark": "content/icons/wenxianyidu-dark.svg",
     }),
   });
   expect("manifest 相对图标路径 → S2 PASS", runChecker(root), ALL_PASS);
@@ -350,8 +350,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   buildGoodPlugin(root, {
     manifest: MANIFEST(
       {
-        "48": "chrome://ztransplit/content/icons/ztransplit-light.svg",
-        "48_dark": "chrome://ztransplit/content/icons/ztransplit-dark.svg",
+        "48": "chrome://wenxianyidu/content/icons/wenxianyidu-light.svg",
+        "48_dark": "chrome://wenxianyidu/content/icons/wenxianyidu-dark.svg",
       },
       { version: "__buildVersion__" },
     ),
@@ -365,8 +365,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   buildGoodPlugin(root, {
     manifest: MANIFEST(
       {
-        "48": "chrome://ztransplit/content/icons/ztransplit-light.svg",
-        "48_dark": "chrome://ztransplit/content/icons/ztransplit-dark.svg",
+        "48": "chrome://wenxianyidu/content/icons/wenxianyidu-light.svg",
+        "48_dark": "chrome://wenxianyidu/content/icons/wenxianyidu-dark.svg",
       },
       { version: "__buildVersion__" },
     ),
@@ -375,8 +375,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
     root,
     ".scaffold/build/addon/manifest.json",
     MANIFEST({
-      "48": "content/icons/ztransplit-light.svg",
-      "48_dark": "content/icons/ztransplit-dark.svg",
+      "48": "content/icons/wenxianyidu-light.svg",
+      "48_dark": "content/icons/wenxianyidu-dark.svg",
     }),
   );
   expect("源 manifest 占位符 + 构建产物版本一致 → S1 PASS", runChecker(root), ALL_PASS);
@@ -388,8 +388,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   buildGoodPlugin(root, {
     manifest: MANIFEST(
       {
-        "48": "chrome://ztransplit/content/icons/ztransplit-light.svg",
-        "48_dark": "chrome://ztransplit/content/icons/ztransplit-dark.svg",
+        "48": "chrome://wenxianyidu/content/icons/wenxianyidu-light.svg",
+        "48_dark": "chrome://wenxianyidu/content/icons/wenxianyidu-dark.svg",
       },
       { version: "__buildVersion__" },
     ),
@@ -399,8 +399,8 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
     ".scaffold/build/addon/manifest.json",
     MANIFEST(
       {
-        "48": "content/icons/ztransplit-light.svg",
-        "48_dark": "content/icons/ztransplit-dark.svg",
+        "48": "content/icons/wenxianyidu-light.svg",
+        "48_dark": "content/icons/wenxianyidu-dark.svg",
       },
       { version: "9.9.9" },
     ),
@@ -424,7 +424,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
     root,
     "addon/content/preferences.xhtml",
     `<xul:vbox xmlns:xul="http://www.mozilla.org/zotero">
-  <xul:preference id="pref-gkey" preference="extensions.zotero.ztransplit.translate.google.apiKey" type="string"/>
+  <xul:preference id="pref-gkey" preference="extensions.zotero.wenxianyidu.translate.google.apiKey" type="string"/>
 </xul:vbox>
 `,
   );
@@ -451,7 +451,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   write(
     root,
     "addon/prefs-pane-note.js",
-    `// Example: \`preference="extensions.zotero.ztransplit.…"\` binds a key.\n`,
+    `// Example: \`preference="extensions.zotero.wenxianyidu.…"\` binds a key.\n`,
   );
   expect("注释里的示例绑定不算读取 → S4 PASS", runChecker(root), ALL_PASS);
 }
@@ -462,7 +462,7 @@ const ALL_PASS = { S1: "PASS", S2: "PASS", S3: "PASS", S4: "PASS", S5: "PASS", S
   buildGoodPlugin(root, {
     prefs:
       PREFS_OK +
-      `\npref("extensions.zotero.ztransplit.translate.custom.apiUrl", "");\n`,
+      `\npref("extensions.zotero.wenxianyidu.translate.custom.apiUrl", "");\n`,
   });
   expect("无人读取的声明键 → S4 WARN", runChecker(root), { ...ALL_PASS, S4: "WARN" });
 }

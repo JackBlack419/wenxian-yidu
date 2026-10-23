@@ -130,8 +130,8 @@ describe("validatePromptTemplate — rejections (one reason each, in order)", ()
   });
 
   it("every rejection reason maps to a distinct Fluent key", () => {
-    // The engine reports `translation-error-ai-prompt-<reason>` (ztransplit.ftl)
-    // and the pane reports `preferences-ztransplit-ai-prompt-error-<reason>`.
+    // The engine reports `translation-error-ai-prompt-<reason>` (wenxianyidu.ftl)
+    // and the pane reports `preferences-wenxianyidu-ai-prompt-error-<reason>`.
     const reasons = cases.map(([, , reason]) => reason);
     expect(new Set(reasons).size).toBe(reasons.length);
   });

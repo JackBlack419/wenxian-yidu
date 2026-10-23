@@ -22,11 +22,13 @@ import { JSDOM } from "jsdom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   mountBilingualControl,
+  disposeActiveBilingualSession,
   type BilingualControlHandle,
 } from "../../../src/ui/bilingualControl";
 import { createZoteroMock } from "../../qa/harness/zotero-mock";
 import * as pdfReaderTts from "../../../src/core/readAloud/pdfReaderTts";
 import { exitBilingualSession } from "../../../src/core/pdf/sdt/sdtBridge";
+import { getActiveSession } from "../../../src/core/pdf/sdt/bilingualLauncher";
 
 /** interleaveView/sdtBridge 被替换后的会话交接点（每个测试自行填充）。 */
 const h = vi.hoisted(() => ({
@@ -189,37 +191,37 @@ function setup(prefs: Record<string, unknown> = {}): Ctx {
     spoken: () => synth.spoken.map((u) => u.text),
     playingVisible: () => !button("readaloud-stop").hidden,
     toggleText: () =>
-      String(doc.querySelector("button.ztransplit-bc-toggle")?.textContent ?? ""),
+      String(doc.querySelector("button.wenxianyidu-bc-toggle")?.textContent ?? ""),
     togglePressed: () =>
       String(
         doc
-          .querySelector("button.ztransplit-bc-toggle")
+          .querySelector("button.wenxianyidu-bc-toggle")
           ?.getAttribute("aria-pressed") ?? "",
       ),
     statusText: () =>
-      String(doc.querySelector(".ztransplit-bc-status")?.textContent ?? ""),
+      String(doc.querySelector(".wenxianyidu-bc-status")?.textContent ?? ""),
   modeValue: () =>
     String(
       (
         doc.querySelector(
-          "button.ztransplit-bc-mode-btn[data-active='true']",
+          "button.wenxianyidu-bc-mode-btn[data-active='true']",
         ) as any
       )?.dataset?.mode ?? "",
     ),
   /** 当前处于高亮态的模式按钮数量（无会话时应为 0：无高亮即无歧义）。 */
   modeHighlighted: () =>
-    doc.querySelectorAll("button.ztransplit-bc-mode-btn[data-active='true']")
+    doc.querySelectorAll("button.wenxianyidu-bc-mode-btn[data-active='true']")
       .length,
   /** 全部模式按钮处于禁用态（仅启动进行中为真）。 */
   modeDisabled: () => {
     const btns = [
-      ...doc.querySelectorAll("button.ztransplit-bc-mode-btn"),
+      ...doc.querySelectorAll("button.wenxianyidu-bc-mode-btn"),
     ] as HTMLButtonElement[];
     return btns.length > 0 && btns.every((b) => b.disabled);
   },
   /** 存储的启动默认模式（reader.bilingual.defaultMode 当前值）。 */
   storedMode: () =>
-    z.prefs.get("extensions.zotero.ztransplit.reader.bilingual.defaultMode"),
+    z.prefs.get("extensions.zotero.wenxianyidu.reader.bilingual.defaultMode"),
   };
 }
 
@@ -233,7 +235,8 @@ async function toggleOn(ctx: Ctx): Promise<void> {
   await flush();
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await disposeActiveBilingualSession();
   // 每个测试自行决定 buildPdfSegments 的行为，避免上一个测试的实现泄漏。
   vi.mocked(pdfReaderTts.buildPdfSegments).mockReset();
   vi.mocked(pdfReaderTts.buildPdfSegments).mockResolvedValue({
@@ -351,6 +354,28 @@ describe("双语控制条：会话与面板生命周期", () => {
     ctx = undefined;
   });
 
+  it("另一文献的控制条不会显示当前会话为自身激活，销毁它也不会关闭当前会话", async () => {
+    ctx = setup(); h.handle = makeHandle(); await toggleOn(ctx);
+    const original = h.handle;
+    const body = ctx.doc.createElement("div"); ctx.doc.body.appendChild(body);
+    const other = mountBilingualControl({ doc: ctx.doc, body, itemID: 2 });
+    expect(body.querySelector(".wenxianyidu-bc-toggle")!.getAttribute("aria-pressed")).toBe("false");
+    other.destroy();
+    expect(original.dispose).not.toHaveBeenCalled();
+    expect(getActiveSession()?.itemID).toBe(1);
+  });
+
+  it("面板收到父条目 ID 时，会话仍绑定实际 PDF 附件", async () => {
+    ctx = setup();
+    ctx.z.items.set(2, { parentItemID: 1 });
+    (globalThis as any).Zotero.Reader.getByTabID = () => ({ itemID: 2, _internalReader: {
+      _setReadingMode: async () => {}, _loadSDT: async () => {}, _primaryView: { _selectionRanges: [] },
+    } });
+    h.handle = makeHandle(); await toggleOn(ctx);
+    expect(getActiveSession()?.itemID).toBe(2);
+    expect(ctx.togglePressed()).toBe("true");
+  });
+
   it("behavior-F3：退出双语停止朗读，按钮复位、模式高亮清除", async () => {
     ctx = setup();
     h.handle = makeHandle();
@@ -385,7 +410,7 @@ describe("双语控制条：会话与面板生命周期", () => {
     expect(ctx.playingVisible()).toBe(true);
 
     // pane-F7：样式挂在面板 body 内，而不是 documentElement
-    expect(ctx.body.querySelectorAll("style.ztransplit-bc-style").length).toBe(1);
+    expect(ctx.body.querySelectorAll("style.wenxianyidu-bc-style").length).toBe(1);
 
     // destroy 会把按钮连同面板一起移走，先抓住元素再断言其状态。
     const stopBtn = ctx.button("readaloud-stop");
@@ -393,7 +418,7 @@ describe("双语控制条：会话与面板生命周期", () => {
     expect(stopBtn.hidden).toBe(true);
     await flush();
     expect(ctx.spoken()).toEqual(["A"]); // 语音已停，无新增
-    expect(ctx.doc.querySelectorAll("style.ztransplit-bc-style").length).toBe(0);
+    expect(ctx.doc.querySelectorAll("style.wenxianyidu-bc-style").length).toBe(0);
   });
 
   it("behavior-F1：buildInterleave 失败回滚阅读模式，再点开关是重新开始", async () => {

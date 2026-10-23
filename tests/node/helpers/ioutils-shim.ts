@@ -22,9 +22,9 @@ export function installIOUTilsShim(): void {
     },
     async makeDirectory(
       dir: string,
-      options?: { createDirs?: boolean; ignoreExisting?: boolean },
+      options?: { createDirs?: boolean; createAncestors?: boolean; ignoreExisting?: boolean },
     ): Promise<void> {
-      fs.mkdirSync(dir, { recursive: !!options?.createDirs });
+      fs.mkdirSync(dir, { recursive: !!(options?.createAncestors || options?.createDirs) });
     },
     async getChildren(dir: string): Promise<any[]> {
       let entries: fs.Dirent[];

@@ -92,7 +92,7 @@ export function findTranslationByRelation(sourceItem: any): any | null {
     });
     return candidates[0] || null;
   } catch (e) {
-    safeDebug("[Z-Transplit] splitViewCleanup: " + e);
+    safeDebug("[文献译读] splitViewCleanup: " + e);
     return null;
   }
 }
@@ -124,7 +124,7 @@ export function cleanupTabResources(tabID: string): void {
   try {
     (state as any)._tabObserver?.disconnect();
   } catch (e) {
-    safeDebug("[Z-Transplit] splitViewFactory: " + e);
+    safeDebug("[文献译读] splitViewFactory: " + e);
     /* ignore */
   }
   state.isCleaningUp = true;
@@ -135,7 +135,7 @@ export function cleanupTabResources(tabID: string): void {
     try {
       (state.win as any).clearInterval(state.syncIntervalId);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
   }
@@ -146,7 +146,7 @@ export function cleanupTabResources(tabID: string): void {
       if (typeof caf === "function") caf(state.syncRAFId);
       else (state.win as any).clearTimeout(state.syncRAFId);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
     state.syncRAFId = null;
@@ -157,13 +157,13 @@ export function cleanupTabResources(tabID: string): void {
   try {
     state.leftTriggerCleanup?.();
   } catch (e) {
-    safeDebug("[Z-Transplit] splitViewFactory: " + e);
+    safeDebug("[文献译读] splitViewFactory: " + e);
     /* best-effort */
   }
   try {
     state.rightTriggerCleanup?.();
   } catch (e) {
-    safeDebug("[Z-Transplit] splitViewFactory: " + e);
+    safeDebug("[文献译读] splitViewFactory: " + e);
     /* best-effort */
   }
   state.leftTriggerCleanup = null;
@@ -173,7 +173,7 @@ export function cleanupTabResources(tabID: string): void {
     try {
       target.removeEventListener(type, listener, options);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
   }
@@ -181,7 +181,7 @@ export function cleanupTabResources(tabID: string): void {
     try {
       (state.win as any).clearTimeout(id);
     } catch (e) {
-      safeDebug("[Z-Transplit] splitViewFactory: " + e);
+      safeDebug("[文献译读] splitViewFactory: " + e);
       /* best-effort */
     }
   }
@@ -217,7 +217,7 @@ export function findSplitTabForItem(
     if (leftID === itemID || rightID === itemID) return state;
   }
   safeDebug(
-    `[Z-Transplit] findSplitTabForItem: miss for ${itemID} (open split tabs: ${stateMap.size})`,
+    `[文献译读] findSplitTabForItem: miss for ${itemID} (open split tabs: ${stateMap.size})`,
   );
   return undefined;
 }
@@ -237,7 +237,7 @@ export function stopAllSyncPollers(): void {
       try {
         (state.win as any).clearInterval(state.syncIntervalId);
       } catch (e) {
-        safeDebug("[Z-Transplit] splitViewCleanup: " + e);
+        safeDebug("[文献译读] splitViewCleanup: " + e);
         /* best-effort */
       }
       state.syncIntervalId = null;
@@ -248,7 +248,7 @@ export function stopAllSyncPollers(): void {
         if (typeof caf === "function") caf(state.syncRAFId);
         else (state.win as any).clearTimeout(state.syncRAFId);
       } catch (e) {
-        safeDebug("[Z-Transplit] splitViewCleanup: " + e);
+        safeDebug("[文献译读] splitViewCleanup: " + e);
         /* best-effort */
       }
       state.syncRAFId = null;
@@ -257,7 +257,7 @@ export function stopAllSyncPollers(): void {
       try {
         (state.win as any).clearTimeout(id);
       } catch (e) {
-        safeDebug("[Z-Transplit] splitViewCleanup: " + e);
+        safeDebug("[文献译读] splitViewCleanup: " + e);
         /* best-effort */
       }
     }

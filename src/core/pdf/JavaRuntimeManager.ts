@@ -3,7 +3,7 @@
  *
  * When the user's machine has no Java 11+, this downloads an Eclipse Temurin
  * **portable JRE** (not an installer — a .zip on Windows, .tar.gz on
- * macOS/Linux) from Adoptium, extracts it under {DataDir}/ztransplit/java-runtime/,
+ * macOS/Linux) from Adoptium, extracts it under {DataDir}/wenxianyidu/java-runtime/,
  * and exposes the absolute path to its `java` executable. Because it's a
  * portable package extracted into the user's own data directory, it needs no
  * administrator privileges, no UAC elevation, and no system PATH modification —
@@ -64,7 +64,7 @@ function isWindows(): boolean {
     ]?.getService?.((Components as any).interfaces?.nsIXULRuntime);
     if (appinfo?.OS === "WINNT") return true;
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
     /* ignore */
   }
   return false;
@@ -86,7 +86,7 @@ function isMacArm64(): boolean {
     const arch = (sysinfo?.get?.("arch") as string) || "";
     if (/aarch64|arm64/i.test(arch)) return true;
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
     /* ignore */
   }
   // Fallback: Zotero 7+ may expose isARM
@@ -107,9 +107,9 @@ function pathJoin(...parts: string[]): string {
   );
 }
 
-/** Managed JRE root: {DataDir}/ztransplit/java-runtime/ */
+/** Managed JRE root: {DataDir}/wenxianyidu/java-runtime/ */
 export function getJavaRuntimeDir(): string {
-  return pathJoin(getDataDir(), "ztransplit", "java-runtime");
+  return pathJoin(getDataDir(), "wenxianyidu", "java-runtime");
 }
 
 /**
@@ -170,7 +170,7 @@ async function findJavaInDir(dir: string): Promise<string | null> {
       }
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
     /* ignore — fall through */
   }
   return null;
@@ -192,7 +192,7 @@ export async function discardManagedRuntime(): Promise<void> {
       ignoreAbsent: true,
     });
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: discard failed: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: discard failed: " + e);
   }
 }
 
@@ -201,7 +201,7 @@ async function pathExists(p: string): Promise<boolean> {
   try {
     return await (globalThis as any).IOUtils.exists(p);
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
     return false;
   }
 }
@@ -229,6 +229,12 @@ async function execCommand(
   opts: { timeout?: number } = {},
 ): Promise<ExecResult> {
   const isWin = isWindows();
+  if (isWin) {
+    // Reuse the Unicode-safe, hidden process runner. A UTF-8 .bat is decoded
+    // using the Windows OEM code page and corrupts Chinese paths.
+    const { runProcess } = await import("./OpenDataLoaderPdfClient");
+    return runProcess(exePath, args, opts.timeout ?? 120000);
+  }
   const Cc = (Components as any).classes;
   const Ci = (Components as any).interfaces;
   const timeout = opts.timeout ?? 120000;
@@ -237,9 +243,9 @@ async function execCommand(
   const tmpDir = (Zotero as any).getTempDirectory();
   const ts = Date.now();
   const stdoutFile = tmpDir.clone();
-  stdoutFile.append(`ztransplit-jre-${ts}-out.txt`);
+  stdoutFile.append(`wenxianyidu-jre-${ts}-out.txt`);
   const stderrFile = tmpDir.clone();
-  stderrFile.append(`ztransplit-jre-${ts}-err.txt`);
+  stderrFile.append(`wenxianyidu-jre-${ts}-err.txt`);
 
   let wrapperExe: string;
   let wrapperArgs: string[];
@@ -250,7 +256,7 @@ async function execCommand(
       `> "${stdoutFile.path}" 2> "${stderrFile.path}"`,
     ].join(" ");
     const batFile = tmpDir.clone();
-    batFile.append(`ztransplit-jre-${ts}.bat`);
+    batFile.append(`wenxianyidu-jre-${ts}.bat`);
     await IOUtils.writeUTF8(batFile.path, batLines);
     wrapperExe = batFile.path;
     wrapperArgs = [];
@@ -329,7 +335,7 @@ async function killProcessTree(proc: any): Promise<void> {
         try {
           tkProc.runwAsync(["/T", "/F", "/PID", String(pid)], 4, obs);
         } catch (e) {
-          safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+          safeDebug("[文献译读] JavaRuntimeManager: " + e);
           resolve();
         }
         setTimeout(resolve, 10_000);
@@ -338,8 +344,8 @@ async function killProcessTree(proc: any): Promise<void> {
     }
     proc.kill();
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
-    try { proc.kill(); } catch (e) {       safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);  /* already dead */ }
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
+    try { proc.kill(); } catch (e) {       safeDebug("[文献译读] JavaRuntimeManager: " + e);  /* already dead */ }
   }
 }
 
@@ -369,10 +375,10 @@ function runProcessWithObserver(
         IOUtils.readUTF8(stderrFile.path).catch(() => ""),
       ]).then(([stdout, stderr]) => {
         for (const p of cleanupPaths || []) {
-          IOUtils.remove(p).catch((e: any) => { safeDebug("[Z-Transplit] JavaRuntimeManager: temp cleanup failed: " + e); });
+          IOUtils.remove(p).catch((e: any) => { safeDebug("[文献译读] JavaRuntimeManager: temp cleanup failed: " + e); });
         }
-        IOUtils.remove(stdoutFile.path).catch((e: any) => { safeDebug("[Z-Transplit] JavaRuntimeManager: temp cleanup failed: " + e); });
-        IOUtils.remove(stderrFile.path).catch((e: any) => { safeDebug("[Z-Transplit] JavaRuntimeManager: temp cleanup failed: " + e); });
+        IOUtils.remove(stdoutFile.path).catch((e: any) => { safeDebug("[文献译读] JavaRuntimeManager: temp cleanup failed: " + e); });
+        IOUtils.remove(stderrFile.path).catch((e: any) => { safeDebug("[文献译读] JavaRuntimeManager: temp cleanup failed: " + e); });
         resolve({
           exitCode: result.exitCode ?? -1,
           stdout: stdout || "",
@@ -484,10 +490,10 @@ async function queryAdoptiumLatestAsset(
       };
     }
     safeDebug(
-      `[Z-Transplit] JavaRuntimeManager: assets API unexpected response status=${resp.status}`,
+      `[文献译读] JavaRuntimeManager: assets API unexpected response status=${resp.status}`,
     );
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: assets API failed: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: assets API failed: " + e);
   }
   return null;
 }
@@ -514,32 +520,7 @@ async function extractArchive(
   });
 
   if (isWin) {
-    // tar handles .zip on Windows 10 1803+.
-    const tarResult = await execCommand(
-      "C:\\Windows\\System32\\tar.exe",
-      ["-xf", archivePath, "-C", destDir],
-      { timeout: 300000 },
-    );
-    if (tarResult.exitCode === 0) return;
-
-    // Fallback: PowerShell Expand-Archive.
-    const psResult = await execCommand(
-      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force`,
-      ],
-      { timeout: 300000 },
-    );
-    if (psResult.exitCode !== 0) {
-      throw new Error(
-        getString("java-error-extract-failed", {
-          detail: psResult.stderr || tarResult.stderr || "unknown error",
-        }),
-      );
-    }
+    await extractWindowsZip(archivePath, destDir);
     return;
   }
 
@@ -555,6 +536,41 @@ async function extractArchive(
   }
 }
 
+/** Native ZIP extraction is independent of console code pages and shell quoting. */
+export async function extractWindowsZip(archivePath: string, destDir: string, signal?: AbortSignal): Promise<void> {
+  const Cc = (Components as any).classes;
+  const Ci = (Components as any).interfaces;
+  const IO = (globalThis as any).IOUtils;
+  const archive = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+  archive.initWithPath(archivePath);
+  const zip = Cc["@mozilla.org/libjar/zip-reader;1"].createInstance(Ci.nsIZipReader);
+  zip.open(archive);
+  try {
+    const entries = zip.findEntries("*");
+    while (entries.hasMore()) {
+      if (signal?.aborted) throw Object.assign(new Error("已取消翻译"), { name: "AbortError" });
+      const raw = entries.getNext();
+      const name = typeof raw === "string" ? raw : raw?.name ?? raw?.QueryInterface?.(Ci.nsISupportsCString)?.data;
+      if (typeof name !== "string" || !name || /[\\:\u0000]/.test(name) || name.startsWith("/") || name.split("/").some(p => p === ".." || p === ".")) {
+        throw new Error("运行库压缩包包含无效路径，安装已停止。");
+      }
+      const parts = name.split("/").filter(Boolean);
+      if (parts.length === 0) continue;
+      const target = pathJoin(destDir, ...parts);
+      if (name.endsWith("/")) {
+        await IO.makeDirectory(target, { createAncestors: true, ignoreExisting: true });
+      } else {
+        const parent = pathJoin(destDir, ...parts.slice(0, -1));
+        await IO.makeDirectory(parent, { createAncestors: true, ignoreExisting: true });
+        const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+        file.initWithPath(target);
+        zip.extract(name, file);
+        await IO.setPermissions?.(target, /\.exe$/i.test(name) ? 0o755 : 0o644);
+      }
+    }
+  } finally { zip.close(); }
+}
+
 
 /**
  * Sibling staging dir: archives are extracted and probed here first, then
@@ -562,7 +578,7 @@ async function extractArchive(
  * a half-written runtime that later gets cached as valid.
  */
 function getStagingDir(): string {
-  return pathJoin(getDataDir(), "ztransplit", "java-runtime.staging");
+  return pathJoin(getDataDir(), "wenxianyidu", "java-runtime.staging");
 }
 
 /**
@@ -571,7 +587,7 @@ function getStagingDir(): string {
  * ~45MB download entirely. Removed only on verified success or mismatch.
  */
 function getArchivePath(archive: "zip" | "tar.gz"): string {
-  return pathJoin(getDataDir(), "ztransplit", `java-runtime.download.${archive}`);
+  return pathJoin(getDataDir(), "wenxianyidu", `java-runtime.download.${archive}`);
 }
 
 interface ArchiveMeta {
@@ -580,7 +596,7 @@ interface ArchiveMeta {
 }
 
 function getArchiveMetaPath(): string {
-  return pathJoin(getDataDir(), "ztransplit", "java-runtime.download.json");
+  return pathJoin(getDataDir(), "wenxianyidu", "java-runtime.download.json");
 }
 
 async function readArchiveMeta(): Promise<ArchiveMeta | null> {
@@ -591,7 +607,7 @@ async function readArchiveMeta(): Promise<ArchiveMeta | null> {
       return meta;
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
   }
   return null;
 }
@@ -603,7 +619,7 @@ async function writeArchiveMeta(meta: ArchiveMeta): Promise<void> {
       JSON.stringify(meta, null, 2) + "\n",
     );
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
   }
 }
 
@@ -617,7 +633,7 @@ async function removeCachedArchive(): Promise<void> {
     try {
       await IOUtils.remove(p, { ignoreAbsent: true });
     } catch (e) {
-      safeDebug("[Z-Transplit] JavaRuntimeManager: archive cleanup failed: " + e);
+      safeDebug("[文献译读] JavaRuntimeManager: archive cleanup failed: " + e);
     }
   }
 }
@@ -653,17 +669,18 @@ export async function downloadJRE(
 async function installJRE(
   featureVersion: number,
   onProgress?: ProgressCallback,
+  offlineAsset?: AdoptiumAsset,
 ): Promise<string> {
   const IOUtils = (globalThis as any).IOUtils;
 
   // IOUtils.write does not create parent directories — make sure the plugin's
   // data subdir exists before we cache the archive and metadata in it.
   try {
-    await IOUtils.makeDirectory(pathJoin(getDataDir(), "ztransplit"), {
+    await IOUtils.makeDirectory(pathJoin(getDataDir(), "wenxianyidu"), {
       createAncestors: true,
     });
   } catch (e) {
-    safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+    safeDebug("[文献译读] JavaRuntimeManager: " + e);
   }
 
   // Fast path with self-heal. findJavaInDir only checks file existence, so a
@@ -683,7 +700,7 @@ async function installJRE(
       return existing;
     }
     safeDebug(
-      `[Z-Transplit] JavaRuntimeManager: managed JRE broken (exit=${existingProbe.exitCode}), reinstalling: ${(existingProbe.stderr || "").slice(0, 200)}`,
+      `[文献译读] JavaRuntimeManager: managed JRE broken (exit=${existingProbe.exitCode}), reinstalling: ${(existingProbe.stderr || "").slice(0, 200)}`,
     );
     onProgress?.({
       percent: 0,
@@ -695,9 +712,9 @@ async function installJRE(
 
   // Assets API first (provides the checksum anchor); the redirect-only
   // binary URL is the fallback when metadata is unreachable.
-  const asset =
+  const asset = offlineAsset ?? (
     (await queryAdoptiumLatestAsset(featureVersion)) ||
-    resolveAdoptiumAsset(featureVersion);
+    resolveAdoptiumAsset(featureVersion));
   const runtimeDir = getJavaRuntimeDir();
   const stagingDir = getStagingDir();
   const archivePath = getArchivePath(asset.archive);
@@ -713,7 +730,7 @@ async function installJRE(
     try {
       fileHash = await sha256Hex(await IOUtils.read(archivePath));
     } catch (e) {
-      safeDebug("[Z-Transplit] JavaRuntimeManager: archive read failed: " + e);
+      safeDebug("[文献译读] JavaRuntimeManager: archive read failed: " + e);
     }
     if (
       fileHash &&
@@ -732,6 +749,9 @@ async function installJRE(
   }
 
   if (!archiveVerified) {
+    if (!asset.sha256) {
+      throw new Error("无法取得官方运行库校验信息。请重试，或使用离线导入并填写官方 SHA-256。");
+    }
     onProgress?.({
       percent: 0,
       phase: "downloading",
@@ -804,7 +824,7 @@ async function installJRE(
     try {
       await IOUtils.remove(stagingDir, { recursive: true, ignoreAbsent: true });
     } catch (e) {
-      safeDebug("[Z-Transplit] JavaRuntimeManager: staging cleanup failed: " + e);
+      safeDebug("[文献译读] JavaRuntimeManager: staging cleanup failed: " + e);
     }
     await extractArchive(archivePath, stagingDir, asset.archive);
 
@@ -827,12 +847,23 @@ async function installJRE(
     // remains of a previous runtime dir (IOUtils.move onto an existing
     // directory fails).
     await discardManagedRuntime();
-    await IOUtils.move(stagingDir, runtimeDir);
+    try {
+      await IOUtils.move(stagingDir, runtimeDir);
+    } catch {
+      if (!isWindows() || asset.archive !== "zip") throw new Error("无法保存运行库，请重试安装。");
+      // Windows can keep transient image handles after java -version. A
+      // directory rename may fail although native extraction and execution
+      // work. Re-extract the checksum-verified ZIP into the private target;
+      // the installed binary is probed again before it is ever cached.
+      await discardManagedRuntime();
+      await extractWindowsZip(archivePath, runtimeDir);
+      try { await IOUtils.remove(stagingDir, { recursive: true, ignoreAbsent: true }); } catch { /* harmless staging remains */ }
+    }
   } catch (e) {
     try {
       await IOUtils.remove(stagingDir, { recursive: true, ignoreAbsent: true });
     } catch (e2) {
-      safeDebug("[Z-Transplit] JavaRuntimeManager: staging cleanup failed: " + e2);
+      safeDebug("[文献译读] JavaRuntimeManager: staging cleanup failed: " + e2);
     }
     // Keep a checksum-verified archive for the retry; drop an unverifiable one.
     if (!archiveVerified) await removeCachedArchive();
@@ -870,6 +901,23 @@ async function installJRE(
   return javaExe;
 }
 
+/** Import a vendor ZIP plus its published checksum without any network call. */
+export async function importJavaArchive(sourcePath: string, expectedSha256: string): Promise<string> {
+  if (!isWindows() || !/\.zip$/i.test(sourcePath)) throw new Error("请选择 Windows 版 Temurin JRE 17 ZIP 压缩包。");
+  const expected = expectedSha256.trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(expected)) throw new Error("请填写官方公布的 64 位 SHA-256 校验值。");
+  if (installInFlight) throw new Error("运行库正在安装，请稍后再导入。");
+  const IO = (globalThis as any).IOUtils;
+  const bytes = await IO.read(sourcePath);
+  if (await sha256Hex(bytes) !== expected) throw new Error("压缩包校验不一致，尚未安装。请重新下载官方文件。");
+  await IO.makeDirectory(pathJoin(getDataDir(), "wenxianyidu"), { createAncestors: true, ignoreExisting: true });
+  await IO.write(getArchivePath("zip"), bytes);
+  await writeArchiveMeta({ sha256: expected, bytes: bytes.byteLength });
+  installInFlight = installJRE(17, undefined, { url: "", filename: basename(sourcePath), archive: "zip", sha256: expected })
+    .finally(() => { installInFlight = null; });
+  return installInFlight;
+}
+
 /**
  * Search system PATH for a `java` executable (does NOT check managed JRE).
  * Mirrors the PATH-search logic in OpenDataLoaderPdfClient.resolveJavaExecutable
@@ -899,7 +947,7 @@ function findSystemJava(): string | null {
       f.initWithPath(p);
       return f;
     } catch (e) {
-      safeDebug("[Z-Transplit] JavaRuntimeManager: " + e);
+      safeDebug("[文献译读] JavaRuntimeManager: " + e);
       return null;
     }
   };

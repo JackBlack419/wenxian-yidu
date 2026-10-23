@@ -1,5 +1,5 @@
 <!--
-  Z-Transplit 设置面板（编辑 → 设置 → Z-Transplit）。
+  文献译读 设置面板（编辑 → 设置 → 文献译读）。
 
   由 Zotero.PreferencePanes.register() 以「片段」方式载入：插件面板走
   Zotero_Preferences._loadPane 的 XHTML 分支（无 defaultXUL），片段被包进
@@ -7,7 +7,7 @@
   格式良好的 XML：单一根元素、不能出现 <?xml?> 声明、html: 前缀必须由根
   元素自行声明（内置面板的 defaultXUL 路径才由 Mozilla 预声明该前缀）。
 
-  文案全部来自 addon/locale/en-US/ztransplit-preferences.ftl（data-l10n-id）。
+  文案全部来自 addon/locale/en-US/wenxianyidu-preferences.ftl（data-l10n-id）。
   每个可交互控件都带 data-l10n-id；同时保留了一份静态中文文案作为兜底 ——
   万一插件 FTL 没能注册进设置窗口的 Fluent 上下文（旧版本 Zotero、构建产物
   缺文件等），面板依然可读可用，不会出现一片空白。两份文案必须同步修改。
@@ -16,600 +16,659 @@
   maxChars 校验、zotero-pdf-translate 安装状态探测。
 -->
 <vbox
-  id="zotero-prefpane-ztransplit"
-  class="ztransplit-prefpane"
+  id="zotero-prefpane-wenxianyidu"
+  class="wenxianyidu-prefpane"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
   xmlns:html="http://www.w3.org/1999/xhtml"
-  onload="if (window.ZTransplitPrefs) ZTransplitPrefs.onLoad(event)"
+  onload="if (window.WenxianYiduPrefs) WenxianYiduPrefs.onLoad(event)"
 >
   <linkset>
-    <html:link rel="localization" href="ztransplit-preferences.ftl" />
+    <html:link rel="localization" href="wenxianyidu-preferences.ftl" />
   </linkset>
   <vbox class="main-section">
-    <vbox class="ztransplit-intro">
+    <vbox class="wenxianyidu-intro">
       <description
-        class="ztransplit-desc"
-        data-l10n-id="preferences-ztransplit-intro"
-      >文本翻译引擎与 PDF 分屏翻译所需的运行环境都在这里配置。</description>
+        class="wenxianyidu-desc"
+        data-l10n-id="preferences-wenxianyidu-intro"
+      >免费开源的文献阅读翻译。免注册即可试译，也可配置官方接口或自己的 AI API。</description>
     </vbox>
 
     <!-- ── (a) 常规 ─────────────────────────────────────────────────────── -->
     <groupbox
-      id="ztransplit-pref-group-general"
-      aria-labelledby="ztransplit-pref-general-title"
+      id="wenxianyidu-pref-group-general"
+      aria-labelledby="wenxianyidu-pref-general-title"
     >
       <label>
         <html:h2
-          id="ztransplit-pref-general-title"
-          data-l10n-id="preferences-ztransplit-general"
+          id="wenxianyidu-pref-general-title"
+          data-l10n-id="preferences-wenxianyidu-general"
         >常规</html:h2>
       </label>
 
       <checkbox
-        id="ztransplit-pref-enabled"
+        id="wenxianyidu-pref-enabled"
         native="true"
-        preference="extensions.zotero.ztransplit.translate.enabled"
-        data-l10n-id="preferences-ztransplit-translate-enabled"
+        preference="extensions.zotero.wenxianyidu.translate.enabled"
+        data-l10n-id="preferences-wenxianyidu-translate-enabled"
         label="启用文本翻译"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-translate-enabled-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-translate-enabled-desc"
         >开启后，条目面板和阅读器中才会出现翻译入口。关闭时翻译按钮和自动翻译都会停用，但已经填写的引擎密钥等设置会保留，随时可以重新开启。</description>
       </vbox>
 
       <checkbox
-        id="ztransplit-pref-auto"
+        id="wenxianyidu-pref-auto"
         native="true"
-        preference="extensions.zotero.ztransplit.translate.auto"
-        data-l10n-id="preferences-ztransplit-translate-auto"
+        preference="extensions.zotero.wenxianyidu.translate.auto"
+        data-l10n-id="preferences-wenxianyidu-translate-auto"
         label="打开条目时自动翻译"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-translate-auto-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-translate-auto-desc"
         >打开阅读器条目或选中文本时立即翻译，不需要再点「翻译」按钮。需要先开启上面的「启用文本翻译」。自动翻译会按下面的字符上限分段请求，打开长文档时会产生较多网络请求。</description>
       </vbox>
 
       <checkbox
-        id="ztransplit-pref-wordcards-enabled"
+        id="wenxianyidu-pref-wordcards-enabled"
         native="true"
-        preference="extensions.zotero.ztransplit.wordcards.enabled"
-        data-l10n-id="preferences-ztransplit-wordcards-enabled"
+        preference="extensions.zotero.wenxianyidu.wordcards.enabled"
+        data-l10n-id="preferences-wenxianyidu-wordcards-enabled"
         label="记录查过的单词（词卡）"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-wordcards-enabled-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-wordcards-enabled-desc"
         >开启后，在 PDF 阅读器中选中一个单词会按词典卡片查询（音标、词性、释义、例句），并自动积累到「词卡」标签页中。关闭后单词按普通文本翻译，已有词卡保留，可随时重新开启。</description>
       </vbox>
 
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
-          id="ztransplit-pref-maxchars-label"
+          id="wenxianyidu-pref-maxchars-label"
           value="单次请求最大字符数"
-          control="ztransplit-pref-maxchars"
-          data-l10n-id="preferences-ztransplit-translate-max-chars"
+          control="wenxianyidu-pref-maxchars"
+          data-l10n-id="preferences-wenxianyidu-translate-max-chars"
         />
         <html:input
-          id="ztransplit-pref-maxchars"
-          class="ztransplit-number"
+          id="wenxianyidu-pref-maxchars"
+          class="wenxianyidu-number"
           type="number"
           min="100"
           max="50000"
           step="100"
           tabindex="0"
-          aria-labelledby="ztransplit-pref-maxchars-label"
-          aria-describedby="ztransplit-pref-maxchars-desc"
+          aria-labelledby="wenxianyidu-pref-maxchars-label"
+          aria-describedby="wenxianyidu-pref-maxchars-desc"
         />
       </hbox>
       <vbox>
         <description
-          id="ztransplit-pref-maxchars-desc"
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-translate-max-chars-desc"
+          id="wenxianyidu-pref-maxchars-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-translate-max-chars-desc"
         >每次提交给翻译引擎的字符上限，可填 100–50000，默认 10000。超出上限的文本会自动分段，所以调大只是减少分段次数、增大单次请求体积；调小更保守，但分段更多，更容易在分段处产生语义断裂。填错或留空时会继续使用上一次的合法值，不会改写设置。</description>
         <description
-          id="ztransplit-pref-maxchars-error"
-          class="ztransplit-desc ztransplit-error"
+          id="wenxianyidu-pref-maxchars-error"
+          class="wenxianyidu-desc wenxianyidu-error"
           hidden="true"
-          data-l10n-id="preferences-ztransplit-translate-max-chars-range"
+          data-l10n-id="preferences-wenxianyidu-translate-max-chars-range"
         >请输入 100 到 50000 之间的整数。</description>
       </vbox>
 
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
-          id="ztransplit-pref-batchtokens-label"
+          id="wenxianyidu-pref-batchtokens-label"
           value="合并批量输入上限（token）"
-          control="ztransplit-pref-batchtokens"
-          data-l10n-id="preferences-ztransplit-translate-batch-tokens"
+          control="wenxianyidu-pref-batchtokens"
+          data-l10n-id="preferences-wenxianyidu-translate-batch-tokens"
         />
         <html:input
-          id="ztransplit-pref-batchtokens"
-          class="ztransplit-number"
+          id="wenxianyidu-pref-batchtokens"
+          class="wenxianyidu-number"
           type="number"
           min="1000"
           max="65536"
           step="512"
           tabindex="0"
-          aria-labelledby="ztransplit-pref-batchtokens-label"
-          aria-describedby="ztransplit-pref-batchtokens-desc"
+          aria-labelledby="wenxianyidu-pref-batchtokens-label"
+          aria-describedby="wenxianyidu-pref-batchtokens-desc"
         />
       </hbox>
       <vbox>
         <description
-          id="ztransplit-pref-batchtokens-desc"
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-translate-batch-tokens-desc"
+          id="wenxianyidu-pref-batchtokens-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-translate-batch-tokens-desc"
         >全文翻译与双语对照会把多个段落合并成一次模型请求，这里限制合并后的输入规模（按估算 token 计），可填 1000–65536，默认 8192。下一段会超出预算时提前收批（该批少带一个段落），而不是超限发送。调大批次更少、上下文更足，但思考型模型的推理开销随批次增大，超配额返回空结果的风险也更高。</description>
         <description
-          id="ztransplit-pref-batchtokens-error"
-          class="ztransplit-desc ztransplit-error"
+          id="wenxianyidu-pref-batchtokens-error"
+          class="wenxianyidu-desc wenxianyidu-error"
           hidden="true"
-          data-l10n-id="preferences-ztransplit-translate-batch-tokens-range"
+          data-l10n-id="preferences-wenxianyidu-translate-batch-tokens-range"
         >请输入 1000 到 65536 之间的整数。</description>
       </vbox>
     </groupbox>
 
     <!-- ── (b) 翻译引擎 ─────────────────────────────────────────────────── -->
     <groupbox
-      id="ztransplit-pref-group-engine"
-      aria-labelledby="ztransplit-pref-engine-title"
+      id="wenxianyidu-pref-group-engine"
+      aria-labelledby="wenxianyidu-pref-engine-title"
     >
       <label>
         <html:h2
-          id="ztransplit-pref-engine-title"
-          data-l10n-id="preferences-ztransplit-engine"
+          id="wenxianyidu-pref-engine-title"
+          data-l10n-id="preferences-wenxianyidu-engine"
         >翻译引擎</html:h2>
       </label>
 
       <!-- 网络区域：声明后套用该区域的推荐值（只覆盖仍为出厂默认的键） -->
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
           value="网络区域"
-          control="ztransplit-pref-region"
-          data-l10n-id="preferences-ztransplit-region"
+          control="wenxianyidu-pref-region"
+          data-l10n-id="preferences-wenxianyidu-region"
         />
         <menulist
-          id="ztransplit-pref-region"
+          id="wenxianyidu-pref-region"
           native="true"
-          preference="extensions.zotero.ztransplit.region"
+          preference="extensions.zotero.wenxianyidu.region"
         >
-          <menupopup id="ztransplit-pref-region-popup">
+          <menupopup id="wenxianyidu-pref-region-popup">
             <menuitem
               value="auto"
               label="自动（不声明）"
-              data-l10n-id="preferences-ztransplit-region-auto"
+              data-l10n-id="preferences-wenxianyidu-region-auto"
             />
             <menuitem
               value="global"
               label="全球"
-              data-l10n-id="preferences-ztransplit-region-global"
+              data-l10n-id="preferences-wenxianyidu-region-global"
             />
             <menuitem
               value="cn"
               label="中国大陆"
-              data-l10n-id="preferences-ztransplit-region-cn"
+              data-l10n-id="preferences-wenxianyidu-region-cn"
             />
           </menupopup>
         </menulist>
       </hbox>
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-region-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-region-desc"
         >选择你所在的网络环境后，插件会把该区域的推荐值写入仍处于出厂默认状态的设置（例如中国大陆默认使用免密钥可达的 Bing 网页引擎）。你显式选择过的引擎永远不会被区域选择覆盖；保持「自动」则一切维持现状。</description>
         <description
-          id="ztransplit-pref-region-note"
-          class="ztransplit-desc"
+          id="wenxianyidu-pref-region-note"
+          class="wenxianyidu-desc"
           hidden="true"
         ></description>
         <!-- 应用提示的分段文案：隐藏的本地化节点，JS 只做搬运不写死字符串 -->
         <description
-          id="ztransplit-pref-region-note-applied"
+          id="wenxianyidu-pref-region-note-applied"
           hidden="true"
-          data-l10n-id="preferences-ztransplit-region-note-applied"
+          data-l10n-id="preferences-wenxianyidu-region-note-applied"
         >已按所选网络区域应用推荐值：仍为出厂默认的相关设置被改写，你显式选择过的引擎未被覆盖。</description>
         <description
-          id="ztransplit-pref-region-note-nochange"
+          id="wenxianyidu-pref-region-note-nochange"
           hidden="true"
-          data-l10n-id="preferences-ztransplit-region-note-nochange"
+          data-l10n-id="preferences-wenxianyidu-region-note-nochange"
         >未改动任何设置：相关设置已符合所选区域的推荐值，或已被你手动修改。</description>
       </vbox>
 
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
-          id="ztransplit-pref-engine-type-label"
+          id="wenxianyidu-pref-engine-type-label"
           value="引擎"
-          control="ztransplit-pref-engine-type"
-          data-l10n-id="preferences-ztransplit-engine-type"
+          control="wenxianyidu-pref-engine-type"
+          data-l10n-id="preferences-wenxianyidu-engine-type"
         />
         <menulist
-          id="ztransplit-pref-engine-type"
+          id="wenxianyidu-pref-engine-type"
           native="true"
-          preference="extensions.zotero.ztransplit.translate.engineType"
+          preference="extensions.zotero.wenxianyidu.translate.engineType"
         >
           <menupopup>
+            <menuitem value="mtranserver" data-l10n-id="preferences-wenxianyidu-engine-mtranserver" />
+            <menuitem label="免注册试用" disabled="true" />
+            <menuitem value="youdao" label="有道 · 免注册试用（短文本）" />
+            <menuitem value="bing-web" label="必应 · 免注册试用" data-l10n-id="preferences-wenxianyidu-engine-bingweb" />
+            <menuseparator />
+            <menuitem label="官方接口" disabled="true" />
+            <menuitem value="niutrans" label="小牛翻译 · 官方接口" />
+            <menuitem value="youdao-official" label="有道智云 · 官方接口" />
+            <menuseparator />
+            <menuitem label="自己的 AI API" disabled="true" />
+            <menuitem value="ai" label="AI 翻译 · 自定义提示词" data-l10n-id="preferences-wenxianyidu-engine-ai" />
+            <menuseparator class="wenxianyidu-advanced-engine" hidden="true" />
             <menuitem
               value="google"
+              class="wenxianyidu-advanced-engine" hidden="true"
               label="Google 翻译"
-              data-l10n-id="preferences-ztransplit-engine-google"
+              data-l10n-id="preferences-wenxianyidu-engine-google"
             />
             <menuitem
               value="bing"
+              class="wenxianyidu-advanced-engine" hidden="true"
               label="Bing 翻译"
-              data-l10n-id="preferences-ztransplit-engine-bing"
-            />
-            <menuitem
-              value="bing-web"
-              label="Bing 网页翻译（免密钥）"
-              data-l10n-id="preferences-ztransplit-engine-bingweb"
+              data-l10n-id="preferences-wenxianyidu-engine-bing"
             />
             <menuitem
               value="deepl"
+              class="wenxianyidu-advanced-engine" hidden="true"
               label="DeepL"
-              data-l10n-id="preferences-ztransplit-engine-deepl"
-            />
-            <menuitem
-              value="ai"
-              label="AI 翻译（OpenAI 兼容）"
-              data-l10n-id="preferences-ztransplit-engine-ai"
+              data-l10n-id="preferences-wenxianyidu-engine-deepl"
             />
             <menuitem
               value="custom"
+              class="wenxianyidu-advanced-engine" hidden="true"
               label="自定义接口（OpenAI 兼容）"
-              data-l10n-id="preferences-ztransplit-engine-custom"
+              data-l10n-id="preferences-wenxianyidu-engine-custom"
             />
             <menuitem
-              id="ztransplit-pref-engine-item-pdftranslate"
+              id="wenxianyidu-pref-engine-item-pdftranslate"
               value="zotero-pdf-translate"
+              class="wenxianyidu-advanced-engine" hidden="true"
               label="zotero-pdf-translate 插件"
-              data-l10n-id="preferences-ztransplit-engine-zotero-pdf-translate"
+              data-l10n-id="preferences-wenxianyidu-engine-zotero-pdf-translate"
             />
           </menupopup>
         </menulist>
       </hbox>
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-engine-type-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-engine-type-desc"
         >选择文本翻译使用的引擎。切换引擎不会清除其它引擎已经填写的密钥，随时可以切回；只有当前选中的引擎会被使用。</description>
       </vbox>
 
-      <!-- google：apiKey 可空，留空走免费端点 + Bing 兜底 -->
-      <vbox id="ztransplit-pref-engine-google" class="ztransplit-engine">
-        <hbox class="ztransplit-row" align="center">
+      <vbox id="wenxianyidu-offline-prepare">
+        <description data-l10n-id="preferences-wenxianyidu-offline-description" />
+        <hbox><button id="wenxianyidu-offline-start" data-l10n-id="preferences-wenxianyidu-offline-start" /><button id="wenxianyidu-offline-cancel" data-l10n-id="preferences-wenxianyidu-offline-cancel" disabled="true" /></hbox>
+        <description id="wenxianyidu-offline-status" role="status" />
+        <html:progress id="wenxianyidu-offline-progress" max="100" hidden="true" data-l10n-id="preferences-wenxianyidu-offline-progress" style="width:100%;max-width:420px;height:8px" />
+      </vbox>
+      <checkbox id="wenxianyidu-pref-show-advanced-engines" native="true" label="显示其他接口（高级）" oncommand="WenxianYiduPrefs.toggleAdvancedEngines(event)" />
+      <description class="wenxianyidu-desc">插件本身不收费。待译文本直接发送给你选择的服务商；其接口费用和额度以官方当前规则为准。切换服务商由你决定。</description>
+      <vbox id="wenxianyidu-pref-engine-youdao" class="wenxianyidu-engine">
+        <description class="wenxianyidu-desc">无需账号和密钥，直接开始翻译。该试用端点实测每分钟仅约 6 次请求，适合划词和单句；翻译全文请改用必应试用或下方官方接口。试用接口可能限流或失效。</description>
+      </vbox>
+      <vbox id="wenxianyidu-pref-engine-niutrans" class="wenxianyidu-engine">
+        <hbox class="wenxianyidu-row" align="center"><label value="API Key" control="wenxianyidu-pref-niutrans-key" /><html:input id="wenxianyidu-pref-niutrans-key" class="wenxianyidu-text" type="password" data-secret-pref="translate.niutrans.apiKey" autocomplete="off" /></hbox>
+        <html:ol class="wenxianyidu-setup-steps">
+          <html:li>打开<html:a href="https://niutrans.com/cloud/account_info/info" onclick="WenxianYiduPrefs.openHelp(event)">小牛官方控制台</html:a>，自行注册、登录并完成平台要求的验证。</html:li>
+          <html:li>开通文本翻译，查看当前免费额度；从个人中心复制 API Key，粘贴到上方。</html:li>
+          <html:li>点击“测试当前引擎”。插件自动检查连接并保存凭据，无需填写签名或编写代码。</html:li>
+        </html:ol>
+      </vbox>
+      <vbox id="wenxianyidu-pref-engine-youdao-official" class="wenxianyidu-engine">
+        <hbox class="wenxianyidu-row" align="center"><label value="应用 ID" control="wenxianyidu-pref-youdao-appkey" /><html:input id="wenxianyidu-pref-youdao-appkey" class="wenxianyidu-text" type="text" data-secret-pref="translate.youdaoOfficial.appKey" autocomplete="off" /></hbox>
+        <hbox class="wenxianyidu-row" align="center"><label value="应用密钥" control="wenxianyidu-pref-youdao-secret" /><html:input id="wenxianyidu-pref-youdao-secret" class="wenxianyidu-text" type="password" data-secret-pref="translate.youdaoOfficial.appSecret" autocomplete="off" /></hbox>
+        <html:ol class="wenxianyidu-setup-steps">
+          <html:li>打开<html:a href="https://ai.youdao.com/console/" onclick="WenxianYiduPrefs.openHelp(event)">有道智云控制台</html:a>，自行注册登录，完成平台要求的验证。</html:li>
+          <html:li>创建文本翻译服务并绑定应用，将应用 ID 和应用密钥粘贴到上方。</html:li>
+          <html:li>查看平台当前的体验额度和计费规则，再点击“测试当前引擎”。签名由插件自动生成。</html:li>
+        </html:ol>
+      </vbox>
+      <description id="wenxianyidu-pref-traditional-prompt-note" class="wenxianyidu-desc">传统翻译接口不使用提示词。希望自定义学术翻译风格时，请选择“AI 翻译”。</description>
+      <hbox class="wenxianyidu-row" align="center"><button id="wenxianyidu-pref-confirm-engine" data-l10n-id="preferences-wenxianyidu-confirm-engine" oncommand="WenxianYiduPrefs.confirmEngine()" /><button id="wenxianyidu-pref-test-connection" label="测试当前引擎" oncommand="WenxianYiduPrefs.confirmEngine(); WenxianYiduPrefs.testConnection()" /><description id="wenxianyidu-pref-connection-status" class="wenxianyidu-desc" role="status" /></hbox>
+      <description id="wenxianyidu-pref-secret-status" class="wenxianyidu-desc" role="status" />
+      <!-- google: optional official API key; no provider fallback. -->
+      <vbox id="wenxianyidu-pref-engine-google" class="wenxianyidu-engine">
+        <description class="wenxianyidu-desc">此功能需要科学上网才能使用</description>
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="Google API 密钥"
-            control="ztransplit-pref-google-key"
-            data-l10n-id="preferences-ztransplit-google-api-key"
+            control="wenxianyidu-pref-google-key"
+            data-l10n-id="preferences-wenxianyidu-google-api-key"
           />
           <html:input
-            id="ztransplit-pref-google-key"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-google-key"
+            class="wenxianyidu-text"
             type="password"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.google.apiKey"
+            data-secret-pref="translate.google.apiKey"
             autocomplete="off"
             spellcheck="false"
           />
           <checkbox
-            class="ztransplit-key-toggle"
+            class="wenxianyidu-key-toggle"
             native="true"
             label="显示密钥"
-            data-l10n-id="preferences-ztransplit-show-key"
-            oncommand="if (window.ZTransplitPrefs) ZTransplitPrefs.toggleKeyVisibility(event)"
+            data-l10n-id="preferences-wenxianyidu-show-key"
+            oncommand="if (window.WenxianYiduPrefs) WenxianYiduPrefs.toggleKeyVisibility(event)"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-google-api-key-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-google-api-key-desc"
           >可以留空。留空时使用免密钥的免费端点，失败后会自动改用免密钥的 Bing 网页接口兜底；填写密钥后改走官方接口，配额和稳定性更好。密钥无效不会弹出提示，只会表现为翻译失败，因此留空通常是更省心的选择。</description>
         </vbox>
       </vbox>
 
       <!-- bing：apiKey + region -->
-      <vbox id="ztransplit-pref-engine-bing" class="ztransplit-engine">
-        <hbox class="ztransplit-row" align="center">
+      <vbox id="wenxianyidu-pref-engine-bing" class="wenxianyidu-engine">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="Bing API 密钥"
-            control="ztransplit-pref-bing-key"
-            data-l10n-id="preferences-ztransplit-bing-api-key"
+            control="wenxianyidu-pref-bing-key"
+            data-l10n-id="preferences-wenxianyidu-bing-api-key"
           />
           <html:input
-            id="ztransplit-pref-bing-key"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-bing-key"
+            class="wenxianyidu-text"
             type="password"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.bing.apiKey"
+            data-secret-pref="translate.bing.apiKey"
             autocomplete="off"
             spellcheck="false"
           />
           <checkbox
-            class="ztransplit-key-toggle"
+            class="wenxianyidu-key-toggle"
             native="true"
             label="显示密钥"
-            data-l10n-id="preferences-ztransplit-show-key"
-            oncommand="if (window.ZTransplitPrefs) ZTransplitPrefs.toggleKeyVisibility(event)"
+            data-l10n-id="preferences-wenxianyidu-show-key"
+            oncommand="if (window.WenxianYiduPrefs) WenxianYiduPrefs.toggleKeyVisibility(event)"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-bing-api-key-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-bing-api-key-desc"
           >必填。Microsoft 翻译器 REST API 的密钥，可在 Azure 门户的「翻译器」资源中申请。未填写时 Bing 翻译会直接失败。</description>
         </vbox>
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="区域"
-            control="ztransplit-pref-bing-region"
-            data-l10n-id="preferences-ztransplit-bing-region"
+            control="wenxianyidu-pref-bing-region"
+            data-l10n-id="preferences-wenxianyidu-bing-region"
           />
           <html:input
-            id="ztransplit-pref-bing-region"
-            class="ztransplit-text ztransplit-short"
+            id="wenxianyidu-pref-bing-region"
+            class="wenxianyidu-text wenxianyidu-short"
             type="text"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.bing.region"
+            preference="extensions.zotero.wenxianyidu.translate.bing.region"
             autocomplete="off"
             spellcheck="false"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-bing-region-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-bing-region-desc"
           >可留空。多区域资源（如 chinaeast2）要与申请时保持一致，全球资源填 global 即可。填错会返回鉴权错误。</description>
         </vbox>
       </vbox>
 
       <!-- bing-web：免密钥，无需任何配置 -->
-      <vbox id="ztransplit-pref-engine-bingweb" class="ztransplit-engine">
+      <vbox id="wenxianyidu-pref-engine-bingweb" class="wenxianyidu-engine">
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-engine-bingweb-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-engine-bingweb-desc"
           >免密钥，无需任何配置。使用必应翻译网页版接口，是中国大陆网络下无需密钥即可直接使用的引擎；适合明知 Google 不可达、不想每次翻译先等待其超时的场景。内置令牌自动刷新，失败会自动重试一次。</description>
         </vbox>
       </vbox>
 
       <!-- deepl：apiKey + 免费端点开关 -->
-      <vbox id="ztransplit-pref-engine-deepl" class="ztransplit-engine">
-        <hbox class="ztransplit-row" align="center">
+      <vbox id="wenxianyidu-pref-engine-deepl" class="wenxianyidu-engine">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="DeepL API 密钥"
-            control="ztransplit-pref-deepl-key"
-            data-l10n-id="preferences-ztransplit-deepl-api-key"
+            control="wenxianyidu-pref-deepl-key"
+            data-l10n-id="preferences-wenxianyidu-deepl-api-key"
           />
           <html:input
-            id="ztransplit-pref-deepl-key"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-deepl-key"
+            class="wenxianyidu-text"
             type="password"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.deepl.apiKey"
+            data-secret-pref="translate.deepl.apiKey"
             autocomplete="off"
             spellcheck="false"
           />
           <checkbox
-            class="ztransplit-key-toggle"
+            class="wenxianyidu-key-toggle"
             native="true"
             label="显示密钥"
-            data-l10n-id="preferences-ztransplit-show-key"
-            oncommand="if (window.ZTransplitPrefs) ZTransplitPrefs.toggleKeyVisibility(event)"
+            data-l10n-id="preferences-wenxianyidu-show-key"
+            oncommand="if (window.WenxianYiduPrefs) WenxianYiduPrefs.toggleKeyVisibility(event)"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-deepl-api-key-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-deepl-api-key-desc"
           >必填。DeepL API 的认证密钥，未填写时 DeepL 翻译会直接失败。</description>
         </vbox>
         <checkbox
-          id="ztransplit-pref-deepl-free"
+          id="wenxianyidu-pref-deepl-free"
           native="true"
-          preference="extensions.zotero.ztransplit.translate.deepl.useFree"
-          data-l10n-id="preferences-ztransplit-deepl-use-free"
+          preference="extensions.zotero.wenxianyidu.translate.deepl.useFree"
+          data-l10n-id="preferences-wenxianyidu-deepl-use-free"
           label="使用 DeepL 免费接口"
         />
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-deepl-use-free-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-deepl-use-free-desc"
           >免费密钥（密钥以 :fx 结尾）必须开启；Pro 密钥请关闭。选错会返回 401/403 鉴权错误。</description>
         </vbox>
       </vbox>
 
       <!-- ai：OpenAI 兼容三件套 + 用户自建 prompt 模板（带校验） -->
-      <vbox id="ztransplit-pref-engine-ai" class="ztransplit-engine">
-        <hbox class="ztransplit-row" align="center">
+      <vbox id="wenxianyidu-pref-engine-ai" class="wenxianyidu-engine">
+        <hbox class="wenxianyidu-row" align="center">
+          <label value="快速配置" control="wenxianyidu-pref-ai-preset" />
+          <menulist id="wenxianyidu-pref-ai-preset" native="true" oncommand="WenxianYiduPrefs.applyAIPreset(event)"><menupopup><menuitem value="custom" label="自定义 OpenAI 兼容接口" /><menuitem value="deepseek" label="DeepSeek 官方 API" /><menuitem value="local" label="已有本地模型服务" /></menupopup></menulist>
+        </hbox>
+        <description class="wenxianyidu-desc">先选择预设，再粘贴自己的 API Key、填写模型名称。你需要自行在服务商控制台注册、开通 API 并复制密钥。模型名称可按账号可用模型修改。本地服务需已安装并运行。</description>
+        <html:a href="https://platform.deepseek.com/api_keys" onclick="WenxianYiduPrefs.openHelp(event)">打开 DeepSeek 官方 API 控制台</html:a>
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="接口地址"
-            control="ztransplit-pref-ai-url"
-            data-l10n-id="preferences-ztransplit-ai-api-url"
+            control="wenxianyidu-pref-ai-url"
+            data-l10n-id="preferences-wenxianyidu-ai-api-url"
           />
           <html:input
-            id="ztransplit-pref-ai-url"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-ai-url"
+            class="wenxianyidu-text"
             type="text"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.ai.apiUrl"
+            data-endpoint-pref="translate.ai.apiUrl"
             autocomplete="off"
             spellcheck="false"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-ai-api-url-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-ai-api-url-desc"
           >必填。OpenAI 兼容的 chat/completions 地址，例如 https://api.example.com/v1/chat/completions，也可以是本地模型服务（如 http://127.0.0.1:11434/v1）。留空时 AI 翻译会直接失败。</description>
         </vbox>
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="API 密钥"
-            control="ztransplit-pref-ai-key"
-            data-l10n-id="preferences-ztransplit-ai-api-key"
+            control="wenxianyidu-pref-ai-key"
+            data-l10n-id="preferences-wenxianyidu-ai-api-key"
           />
           <html:input
-            id="ztransplit-pref-ai-key"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-ai-key"
+            class="wenxianyidu-text"
             type="password"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.ai.apiKey"
+            data-secret-pref="translate.ai.apiKey"
             autocomplete="off"
             spellcheck="false"
           />
           <checkbox
-            class="ztransplit-key-toggle"
+            class="wenxianyidu-key-toggle"
             native="true"
             label="显示密钥"
-            data-l10n-id="preferences-ztransplit-show-key"
-            oncommand="if (window.ZTransplitPrefs) ZTransplitPrefs.toggleKeyVisibility(event)"
+            data-l10n-id="preferences-wenxianyidu-show-key"
+            oncommand="if (window.WenxianYiduPrefs) WenxianYiduPrefs.toggleKeyVisibility(event)"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-ai-api-key-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-ai-api-key-desc"
           >可留空。云端服务通常必填；本地模型服务（Ollama / LM Studio 等）一般不需要密钥，留空即可，此时不会发送 Authorization 头。</description>
         </vbox>
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="模型"
-            control="ztransplit-pref-ai-model"
-            data-l10n-id="preferences-ztransplit-ai-model"
+            control="wenxianyidu-pref-ai-model"
+            data-l10n-id="preferences-wenxianyidu-ai-model"
           />
           <html:input
-            id="ztransplit-pref-ai-model"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-ai-model"
+            class="wenxianyidu-text"
             type="text"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.ai.model"
+            preference="extensions.zotero.wenxianyidu.translate.ai.model"
             autocomplete="off"
             spellcheck="false"
           />
+          <button id="wenxianyidu-pref-ai-models-fetch" data-l10n-id="preferences-wenxianyidu-models-fetch" />
         </hbox>
+        <vbox class="wenxianyidu-model-picker" style="gap:5px;min-width:0">
+          <html:input id="wenxianyidu-pref-ai-models-search" class="wenxianyidu-text" type="search" hidden="true" data-l10n-id="preferences-wenxianyidu-models-search" />
+          <html:select id="wenxianyidu-pref-ai-models-list" style="width:100%;min-height:120px" size="5" hidden="true" data-l10n-id="preferences-wenxianyidu-models-list" />
+          <description id="wenxianyidu-pref-ai-models-status" role="status" />
+        </vbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-ai-model-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-ai-model-desc"
           >可留空。要调用的模型名，例如 gpt-4o-mini、qwen-max、glm-4.7。留空时由服务端使用默认模型，翻译质量不受保证。</description>
         </vbox>
 
         <label
-          id="ztransplit-pref-ai-prompt-label"
-          class="ztransplit-subhead"
+          id="wenxianyidu-pref-ai-prompt-label"
+          class="wenxianyidu-subhead"
           value="翻译提示词模板"
-          control="ztransplit-pref-ai-prompt"
-          data-l10n-id="preferences-ztransplit-ai-prompt"
+          control="wenxianyidu-pref-ai-prompt"
+          data-l10n-id="preferences-wenxianyidu-ai-prompt"
         />
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-ai-prompt-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-ai-prompt-desc"
           >发送给模型的内容，留空表示使用内置默认模板。模板必须包含三个占位符：{{text}}（待翻译原文的位置）、{{sourceLang}}（源语言名称）、{{targetLang}}（目标语言名称）；语言名称由插件按界面语言自动填入，例如「Simplified Chinese」。数学公式在翻译前会被替换成 {v0}、{v1} 这样的标记，默认模板会要求模型原样保留它们。非法模板不会写入设置，选择该引擎时会被就绪检查拦下并提示回到这里修改。</description>
         </vbox>
         <textbox
-          id="ztransplit-pref-ai-prompt"
-          class="ztransplit-prompt"
+          id="wenxianyidu-pref-ai-prompt"
+          class="wenxianyidu-prompt"
           multiline="true"
           rows="8"
           tabindex="0"
-          aria-labelledby="ztransplit-pref-ai-prompt-label"
-          aria-describedby="ztransplit-pref-ai-prompt-desc"
+          aria-labelledby="wenxianyidu-pref-ai-prompt-label"
+          aria-describedby="wenxianyidu-pref-ai-prompt-desc"
         />
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <button
-            id="ztransplit-pref-ai-prompt-restore"
-            class="ztransplit-button"
+            id="wenxianyidu-pref-ai-prompt-restore"
+            class="wenxianyidu-button"
             label="恢复默认模板"
-            data-l10n-id="preferences-ztransplit-ai-prompt-restore"
-            oncommand="if (window.ZTransplitPrefs) ZTransplitPrefs.restoreDefaultPrompt(event)"
+            data-l10n-id="preferences-wenxianyidu-ai-prompt-restore"
+            oncommand="if (window.WenxianYiduPrefs) WenxianYiduPrefs.restoreDefaultPrompt(event)"
           />
+          <button id="wenxianyidu-pref-ai-preview" label="预览提示词" oncommand="WenxianYiduPrefs.previewPrompt()" />
         </hbox>
+        <html:pre id="wenxianyidu-pref-ai-preview-result" class="wenxianyidu-prompt-preview" hidden="true" />
         <description
-          id="ztransplit-pref-ai-prompt-error"
-          class="ztransplit-desc ztransplit-error"
+          id="wenxianyidu-pref-ai-prompt-error"
+          class="wenxianyidu-desc wenxianyidu-error"
           hidden="true"
         >模板不合法。</description>
       </vbox>
 
       <!-- custom：OpenAI 兼容三件套 -->
-      <vbox id="ztransplit-pref-engine-custom" class="ztransplit-engine">
-        <hbox class="ztransplit-row" align="center">
+      <vbox id="wenxianyidu-pref-engine-custom" class="wenxianyidu-engine">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="接口地址"
-            control="ztransplit-pref-custom-url"
-            data-l10n-id="preferences-ztransplit-custom-api-url"
+            control="wenxianyidu-pref-custom-url"
+            data-l10n-id="preferences-wenxianyidu-custom-api-url"
           />
           <html:input
-            id="ztransplit-pref-custom-url"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-custom-url"
+            class="wenxianyidu-text"
             type="text"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.custom.apiUrl"
+            data-endpoint-pref="translate.custom.apiUrl"
             autocomplete="off"
             spellcheck="false"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-custom-api-url-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-custom-api-url-desc"
           >必填。OpenAI 兼容的 chat/completions 地址，例如 https://api.example.com/v1/chat/completions。留空时翻译会失败。</description>
         </vbox>
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="API 密钥"
-            control="ztransplit-pref-custom-key"
-            data-l10n-id="preferences-ztransplit-custom-api-key"
+            control="wenxianyidu-pref-custom-key"
+            data-l10n-id="preferences-wenxianyidu-custom-api-key"
           />
           <html:input
-            id="ztransplit-pref-custom-key"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-custom-key"
+            class="wenxianyidu-text"
             type="password"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.custom.apiKey"
+            data-secret-pref="translate.custom.apiKey"
             autocomplete="off"
             spellcheck="false"
           />
           <checkbox
-            class="ztransplit-key-toggle"
+            class="wenxianyidu-key-toggle"
             native="true"
             label="显示密钥"
-            data-l10n-id="preferences-ztransplit-show-key"
-            oncommand="if (window.ZTransplitPrefs) ZTransplitPrefs.toggleKeyVisibility(event)"
+            data-l10n-id="preferences-wenxianyidu-show-key"
+            oncommand="if (window.WenxianYiduPrefs) WenxianYiduPrefs.toggleKeyVisibility(event)"
           />
         </hbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-custom-api-key-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-custom-api-key-desc"
           >必填。该服务的密钥，通常作为 Authorization: Bearer &lt;密钥&gt; 发送。留空时翻译会失败。</description>
         </vbox>
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <label
             value="模型"
-            control="ztransplit-pref-custom-model"
-            data-l10n-id="preferences-ztransplit-custom-model"
+            control="wenxianyidu-pref-custom-model"
+            data-l10n-id="preferences-wenxianyidu-custom-model"
           />
           <html:input
-            id="ztransplit-pref-custom-model"
-            class="ztransplit-text"
+            id="wenxianyidu-pref-custom-model"
+            class="wenxianyidu-text"
             type="text"
             tabindex="0"
-            preference="extensions.zotero.ztransplit.translate.custom.model"
+            preference="extensions.zotero.wenxianyidu.translate.custom.model"
             autocomplete="off"
             spellcheck="false"
           />
+          <button id="wenxianyidu-pref-custom-models-fetch" data-l10n-id="preferences-wenxianyidu-models-fetch" />
         </hbox>
+        <vbox class="wenxianyidu-model-picker" style="gap:5px;min-width:0">
+          <html:input id="wenxianyidu-pref-custom-models-search" class="wenxianyidu-text" type="search" hidden="true" data-l10n-id="preferences-wenxianyidu-models-search" />
+          <html:select id="wenxianyidu-pref-custom-models-list" style="width:100%;min-height:120px" size="5" hidden="true" data-l10n-id="preferences-wenxianyidu-models-list" />
+          <description id="wenxianyidu-pref-custom-models-status" role="status" />
+        </vbox>
         <vbox>
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-custom-model-desc"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-custom-model-desc"
           >可留空。要调用的模型名，例如 gpt-4o-mini。留空时由服务端使用默认模型，翻译质量不受保证。</description>
         </vbox>
       </vbox>
@@ -618,22 +677,22 @@
            两段状态文案都由 data-l10n-id 本地化，脚本只切 hidden，
            不在 JS 里写死任何字符串（构建时只会重写 xhtml 里的
            data-l10n-id，JS 中的 id 不会加命名空间前缀）。 -->
-      <vbox id="ztransplit-pref-engine-pdftranslate" class="ztransplit-engine">
+      <vbox id="wenxianyidu-pref-engine-pdftranslate" class="wenxianyidu-engine">
         <vbox
-          id="ztransplit-pref-pdftranslate-installed"
+          id="wenxianyidu-pref-pdftranslate-installed"
           hidden="true"
         >
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-pdftranslate-installed"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-pdftranslate-installed"
           >已检测到 zotero-pdf-translate 插件，文本翻译请求会转交给它处理。</description>
         </vbox>
         <vbox
-          id="ztransplit-pref-pdftranslate-missing"
+          id="wenxianyidu-pref-pdftranslate-missing"
         >
           <description
-            class="ztransplit-desc"
-            data-l10n-id="preferences-ztransplit-pdftranslate-missing"
+            class="wenxianyidu-desc"
+            data-l10n-id="preferences-wenxianyidu-pdftranslate-missing"
           >未检测到 zotero-pdf-translate 插件。请在 Zotero 的「工具 → 插件」中安装并启用它，否则选择该引擎时翻译会失败。</description>
         </vbox>
       </vbox>
@@ -641,36 +700,36 @@
 
     <!-- ── (c) PDF 分屏翻译 ─────────────────────────────────────────────── -->
     <groupbox
-      id="ztransplit-pref-group-pdf"
-      aria-labelledby="ztransplit-pref-pdf-title"
+      id="wenxianyidu-pref-group-pdf"
+      aria-labelledby="wenxianyidu-pref-pdf-title"
     >
       <label>
         <html:h2
-          id="ztransplit-pref-pdf-title"
-          data-l10n-id="preferences-ztransplit-pdf"
+          id="wenxianyidu-pref-pdf-title"
+          data-l10n-id="preferences-wenxianyidu-pdf"
         >PDF 分屏翻译</html:h2>
       </label>
 
       <label
-        id="ztransplit-pref-pdf-java-title"
-        class="ztransplit-subhead"
+        id="wenxianyidu-pref-pdf-java-title"
+        class="wenxianyidu-subhead"
         value="Java 运行库"
-        data-l10n-id="preferences-ztransplit-pdf-java-title"
+        data-l10n-id="preferences-wenxianyidu-pdf-java-title"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-java-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-java-desc"
         >保留排版的 PDF 翻译需要 Java 11 或更高版本来解析 PDF 内容。没有安装 Java 时该功能不可用：在阅读器中右键点击 PDF，选择「翻译并分屏」时会自动检测，未检测到会弹窗引导下载安装便携版 Java（约 40MB，解压到数据目录，无需管理员权限），安装完成后再次点击该菜单即可。也可以在下面的「安装 / 修复…」主动安装或重装。</description>
-        <hbox class="ztransplit-row" align="center">
+        <hbox class="wenxianyidu-row" align="center">
           <button
-            id="ztransplit-pref-pdf-java-check"
-            data-l10n-id="preferences-ztransplit-pdf-java-check"
+            id="wenxianyidu-pref-pdf-java-check"
+            data-l10n-id="preferences-wenxianyidu-pdf-java-check"
             label="检测状态"
           />
           <button
-            id="ztransplit-pref-pdf-java-install"
-            data-l10n-id="preferences-ztransplit-pdf-java-install"
+            id="wenxianyidu-pref-pdf-java-install"
+            data-l10n-id="preferences-wenxianyidu-pdf-java-install"
             label="安装 / 修复…"
           />
         </hbox>
@@ -678,226 +737,226 @@
              点击按钮时执行，面板加载不自动探测。文案由 preferences.js 从
              下面的隐藏节点搬运。 -->
         <description
-          id="ztransplit-pref-pdf-java-status"
-          class="ztransplit-desc"
+          id="wenxianyidu-pref-pdf-java-status"
+          class="wenxianyidu-desc"
         ></description>
       </vbox>
 
       <label
-        id="ztransplit-pref-pdf-fonts-title"
-        class="ztransplit-subhead"
+        id="wenxianyidu-pref-pdf-fonts-title"
+        class="wenxianyidu-subhead"
         value="字体覆盖目录"
-        data-l10n-id="preferences-ztransplit-pdf-fonts-title"
+        data-l10n-id="preferences-wenxianyidu-pdf-fonts-title"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-fonts-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-fonts-desc"
         >把自定义字体文件（.ttf / .otf / .ttc）放进下面的目录，即可覆盖 PDF 翻译使用的默认字体，用来改善中文等非拉丁文字的显示效果。目录不存在时会自动创建，放入的字体在下次翻译时生效。</description>
       </vbox>
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
           value="字体目录"
-          control="ztransplit-pref-pdf-fonts-path"
-          data-l10n-id="preferences-ztransplit-pdf-fonts-path"
+          control="wenxianyidu-pref-pdf-fonts-path"
+          data-l10n-id="preferences-wenxianyidu-pdf-fonts-path"
         />
         <html:code
-          id="ztransplit-pref-pdf-fonts-path"
-          class="ztransplit-path"
-        >{数据目录}/ztransplit/translation-assets</html:code>
+          id="wenxianyidu-pref-pdf-fonts-path"
+          class="wenxianyidu-path"
+        >{数据目录}/wenxianyidu/translation-assets</html:code>
       </hbox>
 
       <label
-        id="ztransplit-pref-pdf-lang-title"
-        class="ztransplit-subhead"
+        id="wenxianyidu-pref-pdf-lang-title"
+        class="wenxianyidu-subhead"
         value="译文语言"
-        data-l10n-id="preferences-ztransplit-pdf-lang-title"
+        data-l10n-id="preferences-wenxianyidu-pdf-lang-title"
       />
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
           value="目标语言"
-          control="ztransplit-pref-pdf-lang"
-          data-l10n-id="preferences-ztransplit-pdf-lang"
+          control="wenxianyidu-pref-pdf-lang"
+          data-l10n-id="preferences-wenxianyidu-pdf-lang"
         />
         <html:input
-          id="ztransplit-pref-pdf-lang"
-          class="ztransplit-text ztransplit-short"
+          id="wenxianyidu-pref-pdf-lang"
+          class="wenxianyidu-text wenxianyidu-short"
           type="text"
           tabindex="0"
-          preference="extensions.zotero.ztransplit.translate.targetLanguage"
+          preference="extensions.zotero.wenxianyidu.translate.targetLanguage"
           autocomplete="off"
           spellcheck="false"
         />
       </hbox>
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-lang-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-lang-desc"
         >PDF 分屏翻译的目标语言；Zotero 10 双语对照视图与朗读译文也使用它作为默认目标语言。填写 BCP-47 语言码，如 zh-CN、en-US、ja-JP。留空时跟随 Zotero 的界面语言（默认行为）。阅读器条目面板的文本翻译使用自己的目标语言框，与此处互不影响。</description>
       </vbox>
 
       <label
-        id="ztransplit-pref-pdf-odl-title"
-        class="ztransplit-subhead"
+        id="wenxianyidu-pref-pdf-odl-title"
+        class="wenxianyidu-subhead"
         value="OpenDataLoader 解析选项"
-        data-l10n-id="preferences-ztransplit-pdf-odl-title"
+        data-l10n-id="preferences-wenxianyidu-pdf-odl-title"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-desc"
         >以下选项控制本地 Java 解析组件的行为，影响「翻译并分屏」的版面解析质量与耗时。除超时外，改动都在下次翻译时生效。</description>
       </vbox>
 
       <!-- 解析组件状态与修复：精简版安装包不内置约 24MB 的解析组件，首次
            解析自动下载。下载失败（弱网/离线）后会话内不再自动重试，这里是
            唯一的手动重试入口。行为脚本见 preferences.js 的 odl 小节。 -->
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
           value="解析组件"
-          control="ztransplit-pref-odl-comp-check"
-          data-l10n-id="preferences-ztransplit-pdf-odl-comp"
+          control="wenxianyidu-pref-odl-comp-check"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-comp"
         />
         <button
-          id="ztransplit-pref-odl-comp-check"
-          data-l10n-id="preferences-ztransplit-pdf-odl-comp-check"
+          id="wenxianyidu-pref-odl-comp-check"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-check"
           label="检查状态"
         />
         <button
-          id="ztransplit-pref-odl-comp-download"
-          data-l10n-id="preferences-ztransplit-pdf-odl-comp-download"
+          id="wenxianyidu-pref-odl-comp-download"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-download"
           label="下载 / 修复…"
         />
       </hbox>
       <vbox>
         <description
-          id="ztransplit-pref-odl-comp-status"
-          class="ztransplit-desc"
+          id="wenxianyidu-pref-odl-comp-status"
+          class="wenxianyidu-desc"
         ></description>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-comp-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-desc"
         >精简版安装包不内置约 24MB 的解析组件：首次「翻译并分屏」时自动从镜像下载，逐字节校验后保存到数据目录。组件缺失或下载失败时，点「下载 / 修复…」手动重试；下载进度显示在 Zotero 主窗口。</description>
       </vbox>
 
       <checkbox
-        id="ztransplit-pref-odl-enabled"
+        id="wenxianyidu-pref-odl-enabled"
         native="true"
-        preference="extensions.zotero.ztransplit.pdfParser.opendataloader.enabled"
-        data-l10n-id="preferences-ztransplit-pdf-odl-enabled"
+        preference="extensions.zotero.wenxianyidu.pdfParser.opendataloader.enabled"
+        data-l10n-id="preferences-wenxianyidu-pdf-odl-enabled"
         label="启用 OpenDataLoader 解析"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-enabled-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-enabled-desc"
         >OpenDataLoader 是「翻译并分屏」唯一使用的版面解析后端。关闭后翻译并分屏会直接失败并提示回到这里开启；除非它在你的系统上确实无法运行，否则应保持开启。</description>
       </vbox>
 
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
           value="表格识别"
-          control="ztransplit-pref-odl-table"
-          data-l10n-id="preferences-ztransplit-pdf-odl-table"
+          control="wenxianyidu-pref-odl-table"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-table"
         />
         <menulist
-          id="ztransplit-pref-odl-table"
+          id="wenxianyidu-pref-odl-table"
           native="true"
-          preference="extensions.zotero.ztransplit.pdfParser.opendataloader.tableEnable"
+          preference="extensions.zotero.wenxianyidu.pdfParser.opendataloader.tableEnable"
         >
           <menupopup>
             <menuitem
               value="default"
               label="默认（按边框识别）"
-              data-l10n-id="preferences-ztransplit-pdf-odl-table-default"
+              data-l10n-id="preferences-wenxianyidu-pdf-odl-table-default"
             />
             <menuitem
               value="cluster"
               label="聚类（无边框表格）"
-              data-l10n-id="preferences-ztransplit-pdf-odl-table-cluster"
+              data-l10n-id="preferences-wenxianyidu-pdf-odl-table-cluster"
             />
           </menupopup>
         </menulist>
       </hbox>
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-table-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-table-desc"
         >表格识别方法。「默认」按表格线切分，适合有线框的表格；「聚类」按文本块聚类，适合无边框表格，但耗时更长、误判率略高。</description>
       </vbox>
 
       <checkbox
-        id="ztransplit-pref-odl-structtree"
+        id="wenxianyidu-pref-odl-structtree"
         native="true"
-        preference="extensions.zotero.ztransplit.pdfParser.opendataloader.useStructTree"
-        data-l10n-id="preferences-ztransplit-pdf-odl-structtree"
+        preference="extensions.zotero.wenxianyidu.pdfParser.opendataloader.useStructTree"
+        data-l10n-id="preferences-wenxianyidu-pdf-odl-structtree"
         label="使用结构树判定阅读顺序"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-structtree-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-structtree-desc"
         >PDF 自带结构树（StructTree）时按它判定阅读顺序，多栏排版更准确；没有结构树的 PDF 不受影响，但解析会稍慢。</description>
       </vbox>
 
-      <hbox class="ztransplit-row" align="center">
+      <hbox class="wenxianyidu-row" align="center">
         <label
-          id="ztransplit-pref-odl-timeout-label"
+          id="wenxianyidu-pref-odl-timeout-label"
           value="解析超时（秒）"
-          control="ztransplit-pref-odl-timeout"
-          data-l10n-id="preferences-ztransplit-pdf-odl-timeout"
+          control="wenxianyidu-pref-odl-timeout"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-timeout"
         />
         <html:input
-          id="ztransplit-pref-odl-timeout"
-          class="ztransplit-number"
+          id="wenxianyidu-pref-odl-timeout"
+          class="wenxianyidu-number"
           type="number"
           min="30"
           max="3600"
           step="30"
           tabindex="0"
-          aria-labelledby="ztransplit-pref-odl-timeout-label"
-          aria-describedby="ztransplit-pref-odl-timeout-desc"
+          aria-labelledby="wenxianyidu-pref-odl-timeout-label"
+          aria-describedby="wenxianyidu-pref-odl-timeout-desc"
         />
       </hbox>
       <vbox>
         <description
-          id="ztransplit-pref-odl-timeout-desc"
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-timeout-desc"
+          id="wenxianyidu-pref-odl-timeout-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-timeout-desc"
         >单次版面解析的最长等待时间，可填 30–3600 秒，默认 300。大文档或慢磁盘上解析超时会表现为翻译失败，调大之前请先确认不是 Java 未安装。填错或留空时会继续使用上一次的合法值，不会改写设置。</description>
         <description
-          id="ztransplit-pref-odl-timeout-error"
-          class="ztransplit-desc ztransplit-error"
+          id="wenxianyidu-pref-odl-timeout-error"
+          class="wenxianyidu-desc wenxianyidu-error"
           hidden="true"
-          data-l10n-id="preferences-ztransplit-pdf-odl-timeout-range"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-timeout-range"
         >请输入 30 到 3600 之间的整数。</description>
       </vbox>
 
       <checkbox
-        id="ztransplit-pref-odl-images"
+        id="wenxianyidu-pref-odl-images"
         native="true"
-        preference="extensions.zotero.ztransplit.pdfParser.opendataloader.returnImages"
-        data-l10n-id="preferences-ztransplit-pdf-odl-images"
+        preference="extensions.zotero.wenxianyidu.pdfParser.opendataloader.returnImages"
+        data-l10n-id="preferences-wenxianyidu-pdf-odl-images"
         label="返回嵌入图像"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-odl-images-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-odl-images-desc"
         >让解析器输出页面内嵌图像，翻译后随译文贴回原位置，图表更完整；关闭后只翻译文字，图像区域留白，解析更快、生成的文件更小。</description>
       </vbox>
 
       <checkbox
-        id="ztransplit-pref-removal-enabled"
+        id="wenxianyidu-pref-removal-enabled"
         native="true"
-        preference="extensions.zotero.ztransplit.pdfParser.originalTextRemoval.enabled"
-        data-l10n-id="preferences-ztransplit-pdf-removal-enabled"
+        preference="extensions.zotero.wenxianyidu.pdfParser.originalTextRemoval.enabled"
+        data-l10n-id="preferences-wenxianyidu-pdf-removal-enabled"
         label="删除已翻译段落的原文"
       />
       <vbox>
         <description
-          class="ztransplit-desc"
-          data-l10n-id="preferences-ztransplit-pdf-removal-enabled-desc"
+          class="wenxianyidu-desc"
+          data-l10n-id="preferences-wenxianyidu-pdf-removal-enabled-desc"
         >翻译并分屏时先从 PDF 中真正删除已翻译段落的原文，再叠加译文；删后的译文可正常搜索与复制，不再翻出被遮住的原文。删除失败会自动回退为白色遮罩，关闭后始终使用遮罩。</description>
       </vbox>
     </groupbox>
@@ -909,120 +968,143 @@
     静态节点，由 Fluent 翻译后供 content/preferences.js 读取（取不到时退回这里
     的静态中文，面板依旧可用）。
   -->
-  <vbox id="ztransplit-pref-hidden-strings" hidden="true">
+  <vbox id="wenxianyidu-pref-hidden-strings" hidden="true">
     <label
-      id="ztransplit-pref-string-pdftranslate-missing"
-      data-l10n-id="preferences-ztransplit-engine-zotero-pdf-translate-missing"
+      id="wenxianyidu-pref-string-pdftranslate-missing"
+      data-l10n-id="preferences-wenxianyidu-engine-zotero-pdf-translate-missing"
     >zotero-pdf-translate 插件（未安装）</label>
     <!-- 字体目录回退显示的数据目录占位（读不到 Zotero.DataDirectory.dir 时） -->
     <label
-      id="ztransplit-pref-string-datadir"
-      data-l10n-id="preferences-ztransplit-data-dir-placeholder"
+      id="wenxianyidu-pref-string-datadir"
+      data-l10n-id="preferences-wenxianyidu-data-dir-placeholder"
     >{数据目录}</label>
     <!-- AI prompt 模板的七种非法原因。正文里只放一个错误节点，由脚本按校验
          结果把对应本地化文案搬过去（与 pdftranslate 标签同一套路：JS 不写死
          任何字符串，只搬文本）。 -->
     <label
-      id="ztransplit-pref-string-ai-prompt-too-long"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-too-long"
+      id="wenxianyidu-pref-string-ai-prompt-too-long"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-too-long"
     >模板过长：不得超过 4000 个字符。</label>
     <label
-      id="ztransplit-pref-string-ai-prompt-unknown-placeholder"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-unknown-placeholder"
+      id="wenxianyidu-pref-string-ai-prompt-unknown-placeholder"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-unknown-placeholder"
     >模板包含未知占位符：只支持 {{text}}、{{sourceLang}}、{{targetLang}} 三种（双花括号）。</label>
     <label
-      id="ztransplit-pref-string-ai-prompt-missing-text"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-missing-text"
+      id="wenxianyidu-pref-string-ai-prompt-missing-text"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-missing-text"
     >模板缺少 {{text}}：它是待翻译原文所在的位置。</label>
     <label
-      id="ztransplit-pref-string-ai-prompt-duplicate-text"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-duplicate-text"
+      id="wenxianyidu-pref-string-ai-prompt-duplicate-text"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-duplicate-text"
     >模板里 {{text}} 出现了多次：待翻译原文只能发送一次。</label>
     <label
-      id="ztransplit-pref-string-ai-prompt-missing-source-lang"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-missing-source-lang"
+      id="wenxianyidu-pref-string-ai-prompt-missing-source-lang"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-missing-source-lang"
     >模板缺少 {{sourceLang}}：它是源语言名称所在的位置。</label>
     <label
-      id="ztransplit-pref-string-ai-prompt-missing-target-lang"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-missing-target-lang"
+      id="wenxianyidu-pref-string-ai-prompt-missing-target-lang"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-missing-target-lang"
     >模板缺少 {{targetLang}}：它是目标语言名称所在的位置。</label>
     <label
-      id="ztransplit-pref-string-ai-prompt-unbalanced-braces"
-      data-l10n-id="preferences-ztransplit-ai-prompt-error-unbalanced-braces"
+      id="wenxianyidu-pref-string-ai-prompt-unbalanced-braces"
+      data-l10n-id="preferences-wenxianyidu-ai-prompt-error-unbalanced-braces"
     >模板的花括号不成对：占位符写成双花括号（{{text}}），公式标记写成单花括号（{v0}）。</label>
     <!-- Java 运行库状态行与按钮的动态文案。版本/错误详情占位符由
          preferences.js 填充：本地化值里写 Fluent 变量（{ $version }），静态
          回退正文里写 {version}，脚本对两种写法都做替换。 -->
     <label
-      id="ztransplit-pref-string-java-btn-installing"
-      data-l10n-id="preferences-ztransplit-pdf-java-installing"
+      id="wenxianyidu-pref-string-java-btn-installing"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-installing"
     >正在安装…</label>
     <label
-      id="ztransplit-pref-string-java-status-checking"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-checking"
+      id="wenxianyidu-pref-string-java-status-checking"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-checking"
     >正在检测 Java 运行库…</label>
     <label
-      id="ztransplit-pref-string-java-status-installing"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-installing"
+      id="wenxianyidu-pref-string-java-status-installing"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-installing"
     >正在下载并安装 Java 运行库，进度显示在 Zotero 主窗口。完成后此处会自动刷新状态。</label>
     <label
-      id="ztransplit-pref-string-java-status-ready-managed"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-ready-managed"
+      id="wenxianyidu-pref-string-java-status-ready-managed"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-ready-managed"
     >Java 运行库可用：{version}（插件管理的便携版，位于数据目录）。</label>
     <label
-      id="ztransplit-pref-string-java-status-ready-system"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-ready-system"
+      id="wenxianyidu-pref-string-java-status-ready-system"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-ready-system"
     >Java 运行库可用：{version}（系统安装）。</label>
     <label
-      id="ztransplit-pref-string-java-status-missing"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-missing"
+      id="wenxianyidu-pref-string-java-status-missing"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-missing"
     >未检测到可用的 Java 运行库。点「安装 / 修复…」自动下载便携版（约 45MB，安装到数据目录，无需管理员权限）。</label>
     <label
-      id="ztransplit-pref-string-java-status-error"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-error"
+      id="wenxianyidu-pref-string-java-status-error"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-error"
     >检测失败：{detail}</label>
     <label
-      id="ztransplit-pref-string-java-status-nobundle"
-      data-l10n-id="preferences-ztransplit-pdf-java-status-nobundle"
+      id="wenxianyidu-pref-string-java-status-nobundle"
+      data-l10n-id="preferences-wenxianyidu-pdf-java-status-nobundle"
     >插件主包未加载，无法检测或安装。请重启 Zotero；仍未恢复时请重新安装本插件。</label>
     <!-- 解析组件状态行与按钮的动态文案（与 Java 小节同一套路：版本/错误
          详情占位符由 preferences.js 填充，本地化值写 Fluent 变量
          { $version }，静态回退正文写 {version}，脚本对两种写法都替换）。 -->
     <label
-      id="ztransplit-pref-string-odl-comp-btn-downloading"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-downloading"
+      id="wenxianyidu-pref-string-odl-comp-btn-downloading"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-downloading"
     >正在下载…</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-checking"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-checking"
+      id="wenxianyidu-pref-string-odl-comp-status-checking"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-checking"
     >正在检查解析组件…</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-downloading"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-downloading"
+      id="wenxianyidu-pref-string-odl-comp-status-downloading"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-downloading"
     >正在下载解析组件，进度显示在 Zotero 主窗口。完成后此处会自动刷新状态。</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-ready-landed"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-ready-landed"
+      id="wenxianyidu-pref-string-odl-comp-status-ready-landed"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-ready-landed"
     >解析组件就绪：{version}（已下载到数据目录）。</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-ready-bundled"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-ready-bundled"
+      id="wenxianyidu-pref-string-odl-comp-status-ready-bundled"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-ready-bundled"
     >解析组件就绪：{version}（安装包内置）。</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-missing"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-missing"
+      id="wenxianyidu-pref-string-odl-comp-status-missing"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-missing"
     >未找到解析组件。点「下载 / 修复…」自动从镜像下载（约 24MB，保存到数据目录，无需重新安装插件）；下载失败时请检查网络后重试。</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-error"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-error"
+      id="wenxianyidu-pref-string-odl-comp-status-error"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-error"
     >检查失败：{detail}</label>
     <label
-      id="ztransplit-pref-string-odl-comp-download-failed"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-download-failed"
+      id="wenxianyidu-pref-string-odl-comp-download-failed"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-download-failed"
     >下载失败：{detail}</label>
     <label
-      id="ztransplit-pref-string-odl-comp-status-nobundle"
-      data-l10n-id="preferences-ztransplit-pdf-odl-comp-status-nobundle"
+      id="wenxianyidu-pref-string-odl-comp-status-nobundle"
+      data-l10n-id="preferences-wenxianyidu-pdf-odl-comp-status-nobundle"
     >插件主包未加载，无法检查或下载解析组件。请重启 Zotero；仍未恢复时请重新安装本插件。</label>
   </vbox>
+<description hidden="true" id="wenxianyidu-pref-models-loading" data-l10n-id="preferences-wenxianyidu-models-loading" />
+<description hidden="true" id="wenxianyidu-pref-models-ready" data-l10n-id="preferences-wenxianyidu-models-ready" />
+<description hidden="true" id="wenxianyidu-pref-models-failed" data-l10n-id="preferences-wenxianyidu-models-failed" />
+<description hidden="true" id="wenxianyidu-pref-models-timeout" data-l10n-id="preferences-wenxianyidu-models-timeout" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-missing" data-l10n-id="preferences-wenxianyidu-offline-phase-missing" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-downloading" data-l10n-id="preferences-wenxianyidu-offline-phase-downloading" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-extracting" data-l10n-id="preferences-wenxianyidu-offline-phase-extracting" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-dependencies" data-l10n-id="preferences-wenxianyidu-offline-phase-dependencies" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-models" data-l10n-id="preferences-wenxianyidu-offline-phase-models" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-trial" data-l10n-id="preferences-wenxianyidu-offline-phase-trial" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-ready" data-l10n-id="preferences-wenxianyidu-offline-phase-ready" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-cancelled" data-l10n-id="preferences-wenxianyidu-offline-phase-cancelled" />
+<description hidden="true" id="wenxianyidu-pref-offline-phase-failed" data-l10n-id="preferences-wenxianyidu-offline-phase-failed" />
+
+<description hidden="true" id="wenxianyidu-pref-offline-phase-verifying" data-l10n-id="preferences-wenxianyidu-offline-phase-verifying" />
+
+<description hidden="true" id="wenxianyidu-pref-offline-phase-verifying-model" data-l10n-id="preferences-wenxianyidu-offline-phase-verifying-model" />
+
+<description hidden="true" id="wenxianyidu-pref-offline-phase-model-extracting" data-l10n-id="preferences-wenxianyidu-offline-phase-model-extracting" />
+
+<description hidden="true" id="wenxianyidu-pref-offline-phase-initializing" data-l10n-id="preferences-wenxianyidu-offline-phase-initializing" />
+
+<description hidden="true" id="wenxianyidu-pref-offline-phase-cancelling" data-l10n-id="preferences-wenxianyidu-offline-phase-cancelling" />
 </vbox>

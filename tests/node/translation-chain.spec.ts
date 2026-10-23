@@ -148,6 +148,26 @@ describe("createTranslator / custom 引擎", () => {
     const translate = createTranslator("zh-CN");
     await expect(translate("x", "zh-CN")).rejects.toThrow("HTTP 401: bad key");
   });
+
+  it("JSON 错误保留排错原因并隐藏服务端回显的密钥", async () => {
+    defaultPrefs();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { message: "Invalid API key custom-key; check the selected project." },
+    }), { status: 401 }));
+    const error = await createTranslator("zh-CN")("error-json-fixture", "zh-CN").catch(e => e);
+    expect(error.message).toContain("HTTP 401");
+    expect(error.message).toContain("check the selected project");
+    expect(error.message).not.toContain("custom-key");
+  });
+
+  it("HTML 网关错误只显示状态，不将整页内容作为诊断", async () => {
+    defaultPrefs();
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(
+      "<!doctype html><html><body>proxy diagnostic payload</body></html>",
+      { status: 502, statusText: "Bad Gateway" },
+    ));
+    await expect(createTranslator("zh-CN")("error-html-fixture", "zh-CN")).rejects.toThrow("HTTP 502: Bad Gateway");
+  });
 });
 
 // ===========================================================================

@@ -86,22 +86,22 @@ async function lookupCache(
       if (hit !== undefined) hits.set(i, hit);
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] translateParagraphs cache lookup failed: " + e);
+    safeDebug("[文献译读] translateParagraphs cache lookup failed: " + e);
   }
   return { keys, hits };
 }
 
 /** Fire-and-forget cache store (never throws, never blocks the caller). */
-function storeCache(
+async function storeCache(
   cacheIdentity: string | undefined,
   sourceLanguage: string | undefined,
   targetLanguage: string,
   sourceText: string,
   translated: string,
-): void {
+): Promise<void> {
   if (!cacheIdentity) return;
-  void putCachedTranslation(cacheIdentity, sourceLanguage || "auto", targetLanguage, sourceText, translated)
-    .catch((e) => safeDebug("[Z-Transplit] translateParagraphs cache store failed: " + e));
+  await putCachedTranslation(cacheIdentity, sourceLanguage || "auto", targetLanguage, sourceText, translated)
+    .catch((e) => safeDebug("[文献译读] translateParagraphs cache store failed: " + e));
 }
 
 /**
@@ -123,7 +123,7 @@ export async function translateParagraphs(
   targetLanguage: string,
   sourceLanguage?: string,
   concurrency = 4,
-  options?: { cacheIdentity?: string },
+  options?: { cacheIdentity?: string; signal?: AbortSignal; onProgress?: (done: number, total: number) => void },
 ): Promise<{ results: string[]; status: ParagraphTranslation[] }> {
   const results: string[] = new Array(texts.length).fill("");
   const status: ParagraphTranslation[] = new Array(texts.length);
@@ -161,8 +161,10 @@ export async function translateParagraphs(
 
   // Bounded-concurrency translation pool (converter.py: ThreadPoolExecutor.map)
   let cursor = 0;
+  let completed = hits.size;
   async function worker(): Promise<void> {
     while (cursor < tasks.length) {
+      if (options?.signal?.aborted) throw new DOMException("已取消翻译", "AbortError");
       const current = cursor++;
       const { index, text } = tasks[current];
       // One retry with a short backoff before falling back to the original
@@ -174,21 +176,23 @@ export async function translateParagraphs(
         try {
           out = await translate(text, targetLanguage, sourceLanguage);
         } catch (e) {
-          safeDebug("[Z-Transplit] translateParagraphs: " + e);
+          if (options?.signal?.aborted) throw e;
+          safeDebug("[文献译读] translateParagraphs: " + e);
           if (attempt === 0) {
             await new Promise((r) => setTimeout(r, 500));
           }
         }
       }
-      if (out !== null) {
+      if (out !== null && out.trim()) {
         results[index] = out;
         status[index] = { translated: out, skippedFormula: false, failed: false };
-        storeCache(options?.cacheIdentity, sourceLanguage, targetLanguage, text, out);
+        await storeCache(options?.cacheIdentity, sourceLanguage, targetLanguage, text, out);
       } else {
         // Fallback: keep original on failure (better than dropping the paragraph).
         results[index] = text;
         status[index] = { translated: text, skippedFormula: false, failed: true };
       }
+      options?.onProgress?.(++completed, texts.length);
     }
   }
 
@@ -310,7 +314,7 @@ export async function translateAllPagesBatched(
   pageTexts: string[][],
   batchTranslate: BatchTranslator,
   options: BatchTranslationOptions,
-): Promise<BatchTranslationResult> {
+): Promise<BatchTranslationResult & { failedPositions: string[] }> {
   const onProgress = options.onProgress ?? (() => {});
   const concurrency = options.concurrency ?? 4;
   const expansionFactor = expansionFactorForTarget(options.targetLanguage);
@@ -330,6 +334,7 @@ export async function translateAllPagesBatched(
     return {
       translatedSets: pageTexts.map((page) => page.slice()),
       failedCount: 0,
+      failedPositions: [],
     };
   }
 
@@ -378,6 +383,7 @@ export async function translateAllPagesBatched(
   const translated = new Map<string, string>(); // `${pageIdx}:${paraIdx}` → text
   const failedKeys = new Set<string>();
   let completed = 0;
+  let fatal: unknown;
   // ProgressWindow.addDescription appends one row per call — reporting every
   // chunk would stack dozens of near-identical "x/y" lines on long documents.
   // Report the first, the last, and ~5 evenly spaced steps in between.
@@ -388,11 +394,11 @@ export async function translateAllPagesBatched(
   await Promise.all(
     chunks.map(async (chunk) => {
       // Cooperative cancel: skip chunks not yet started.
-      if (signal?.aborted) return;
+      if (signal?.aborted || fatal) return;
 
       const release = await sem.acquire();
       // Re-check after waiting for the semaphore — may have queued a while.
-      if (signal?.aborted) {
+      if (signal?.aborted || fatal) {
         release();
         return;
       }
@@ -406,7 +412,7 @@ export async function translateAllPagesBatched(
             failedKeys.add(key);
           } else if (chunk[i].cacheKey) {
             // Only cache successes — a failed paragraph kept its original text.
-            storeCache(
+            await storeCache(
               options.cacheIdentity,
               options.sourceLanguage,
               options.targetLanguage,
@@ -416,7 +422,8 @@ export async function translateAllPagesBatched(
           }
         }
       } catch (e) {
-        safeDebug("[Z-Transplit] translateParagraphs: " + e);
+        if ([401,403].includes((e as any)?.status) || /credential|unauthori[sz]ed|forbidden|凭据|密钥|认证/i.test(String((e as any)?.message))) fatal = e;
+        safeDebug("[文献译读] translateParagraphs: " + e);
         // Defensive: batchTranslate contract says "never throws" (except on
         // cancel), but if a bug escapes, preserve original text rather than
         // rejecting Promise.all and orphaning other in-flight chunks.
@@ -446,6 +453,7 @@ export async function translateAllPagesBatched(
     }),
   );
 
+  if (fatal) throw fatal;
   const translatedSets: string[][] = pageTexts.map((page, p) =>
     page.map((origText, j) => {
       const key = `${p}:${j}`;
@@ -460,5 +468,5 @@ export async function translateAllPagesBatched(
     }),
   );
 
-  return { translatedSets, failedCount: failedKeys.size };
+  return { translatedSets, failedCount: failedKeys.size, failedPositions: [...failedKeys] };
 }

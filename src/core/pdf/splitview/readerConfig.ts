@@ -46,13 +46,13 @@ export function buildReaderFtl(): string[] {
       try {
         ftl.push((Zotero as any).File.getContentsFromURL(url));
       } catch (e) {
-        safeDebug("[Z-Transplit] readerConfig: " + e);
+        safeDebug("[文献译读] readerConfig: " + e);
         /* locale file missing — skip */
       }
     }
     return ftl;
   } catch (e) {
-    safeDebug("[Z-Transplit] readerConfig: " + e);
+    safeDebug("[文献译读] readerConfig: " + e);
     return [];
   }
 }
@@ -81,6 +81,9 @@ export function buildReaderConfig(item: any, opts: ReaderConfigOptions = {}): Re
     },
     annotations: [],
     readOnly: true,
+    // Each split pane keeps its native toggle, without an empty sidebar gutter.
+    sidebarOpen: false,
+    sidebarWidth: 200,
     // Zotero 8/9 reader iterates options.ftl to localize UI; missing → blank pane.
     ftl: buildReaderFtl(),
     primaryViewState: opts.initialState || undefined,

@@ -64,7 +64,7 @@ export function isFormulaVisionAvailable(): boolean {
   try {
     return visionConfig() !== null;
   } catch (e) {
-    safeDebug("[Z-Transplit] formulaExtractor: " + e);
+    safeDebug("[文献译读] formulaExtractor: " + e);
     return false;
   }
 }

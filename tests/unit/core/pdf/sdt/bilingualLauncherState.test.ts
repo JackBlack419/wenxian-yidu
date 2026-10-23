@@ -30,13 +30,16 @@ vi.mock("../../../../../src/core/translation/translationEngines", () => ({
   supportsBatching: () => false,
   createTranslator: () => async () => "x",
   createAIBatchTranslator: vi.fn(),
+  engineCacheIdentity: () => "test-identity",
 }));
 
 import {
   getActiveBilingualModeForItem,
   startBilingualSession,
   stopBilingualSession,
+  cancelBilingualTranslation,
 } from "../../../../../src/core/pdf/sdt/bilingualLauncher";
+import { getTranslationStatus } from "../../../../../src/core/pdf/splitview/translationStatus";
 import { findSplitTabForItem } from "../../../../../src/core/pdf/splitview/splitViewCleanup";
 import { stateMap } from "../../../../../src/core/pdf/splitview/splitViewSync";
 
@@ -78,6 +81,21 @@ afterEach(async () => {
 });
 
 describe("getActiveBilingualModeForItem — 菜单对勾的会话查询", () => {
+  it("publishes contrast progress and retains cancellation against late progress", async () => {
+    const handle = makeHandleStub(); buildInterleaveMock.mockResolvedValue(handle);
+    await startBilingualSession({ reader: { _setReadingMode() {}, _loadSDT() {} }, itemID: 7, mode: "interleave", cacheIdentity: "test-identity" });
+    const opts = buildInterleaveMock.mock.calls.at(-1)![1];
+    opts.onProgress({ loading: 1, queued: 2, total: 4, done: 1, failed: 0 });
+    expect(getTranslationStatus(7).phase).toBe("running");
+    opts.onProgress({ loading: 0, queued: 0, total: 4, done: 4, failed: 0 });
+    expect(getTranslationStatus(7).phase).toBe("complete");
+    expect(cancelBilingualTranslation(7)).toBe(true);
+    opts.onProgress({ loading: 0, queued: 0, total: 4, done: 4, failed: 0 });
+    expect(getTranslationStatus(7).phase).toBe("cancelled");
+    await stopBilingualSession(); expect(getTranslationStatus(7).phase).toBe("idle");
+    opts.onProgress({ loading: 0, queued: 0, total: 4, done: 4, failed: 0 });
+    expect(getTranslationStatus(7).phase).toBe("idle");
+  });
   it("会话进行中按条目 id 返回当前模式，其他条目返回 null", async () => {
     await startSession(7, "interleave");
     expect(getActiveBilingualModeForItem(7)).toBe("interleave");

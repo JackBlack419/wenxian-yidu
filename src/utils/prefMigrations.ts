@@ -67,7 +67,7 @@ export function migratePrefs(): void {
     if (stored >= CURRENT_PREF_VERSION) return;
 
     safeDebug(
-      `[Z-Transplit] Pref migration: ${stored} → ${CURRENT_PREF_VERSION}`,
+      `[文献译读] Pref migration: ${stored} → ${CURRENT_PREF_VERSION}`,
     );
 
     for (const m of MIGRATIONS) {
@@ -75,7 +75,7 @@ export function migratePrefs(): void {
       if (m.from >= m.to) continue; // 畸形步骤，跳过
       try {
         safeDebug(
-          `[Z-Transplit] Pref migration step ${m.from}→${m.to}: ${m.description}`,
+          `[文献译读] Pref migration step ${m.from}→${m.to}: ${m.description}`,
         );
         m.run();
         setPrefDynamic("prefSchemaVersion", m.to);
@@ -83,16 +83,16 @@ export function migratePrefs(): void {
         // 单步失败不能中断后续独立步骤，也不能损坏状态：记录后停在这里，
         // 下次启动从同一版本重试（失败步骤不会被标记为已应用）。
         safeDebug(
-          `[Z-Transplit] Pref migration step ${m.from}→${m.to} FAILED: ${e} — will retry next launch`,
+          `[文献译读] Pref migration step ${m.from}→${m.to} FAILED: ${e} — will retry next launch`,
         );
         return;
       }
     }
 
-    safeDebug(`[Z-Transplit] Pref migration complete at v${CURRENT_PREF_VERSION}`);
+    safeDebug(`[文献译读] Pref migration complete at v${CURRENT_PREF_VERSION}`);
   } catch (e) {
     // 迁移永远不能破坏启动：偏好处于任何意外状态都只记录。
-    safeDebug(`[Z-Transplit] Pref migration aborted (non-fatal): ${e}`);
+    safeDebug(`[文献译读] Pref migration aborted (non-fatal): ${e}`);
   }
 }
 

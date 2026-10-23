@@ -20,7 +20,7 @@
  *   - packed-XPI installs: Zotero keeps plugins as a packed .xpi (rootURI is
  *     a jar: URI), so the bundled jars are inside a zip and `java -jar` can
  *     never find them on disk. getJarPath() extracts them to
- *     {DataDir}/ztransplit/lib/ on first use (SHA-256-checked against the
+ *     {DataDir}/wenxianyidu/lib/ on first use (SHA-256-checked against the
  *     shipped PROVENANCE*.json) — see extractJarFromPackedXpi.
  * Host-coupled (nsIProcess / nsIFile / Zotero.getTempDirectory) — not
  * unit-testable in Node.
@@ -40,6 +40,7 @@ import { Semaphore } from "../../utils/Semaphore";
 import { debug as log, safeDebug } from "../../utils/logger";
 import { toErrorMessage } from "../../utils/error";
 import { getString } from "../../utils/locale";
+import { createOwnedProgressWindow, createProgressRow, scheduleProgressClose } from "../../utils/progressRow";
 
 /** Limits concurrent JVM processes to prevent OOM under parallel PDF parsing.
  *  Each JVM consumes ~200-400MB RSS; 2 is a safe ceiling for typical machines. */
@@ -136,11 +137,11 @@ export async function checkHealth(): Promise<HealthResult> {
     const { getManagedJavaExe } = await import("./JavaRuntimeManager");
     await getManagedJavaExe();
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     /* best-effort: fall through to system detection */
   }
   let javaExe = resolveJavaExecutable();
-  log(`[Z-Transplit ODL] checkHealth: javaExe="${javaExe}"`);
+  log(`[文献译读 ODL] checkHealth: javaExe="${javaExe}"`);
   if (!javaExe) {
     return {
       healthy: false,
@@ -154,7 +155,7 @@ export async function checkHealth(): Promise<HealthResult> {
   // opendataloader-pdf CLI and cause a non-zero exit.
   let result = await runProcess(javaExe, ["-version"], 10000);
   log(
-    `[Z-Transplit ODL] checkHealth: java -version exitCode=${result.exitCode} timedOut=${result.timedOut}`,
+    `[文献译读 ODL] checkHealth: java -version exitCode=${result.exitCode} timedOut=${result.timedOut}`,
   );
   // A managed JRE that exists but won't run (e.g. a truncated extraction)
   // must not poison every later parse: drop it — this also clears the sync
@@ -164,7 +165,7 @@ export async function checkHealth(): Promise<HealthResult> {
       const { discardManagedRuntime } = await import("./JavaRuntimeManager");
       await discardManagedRuntime();
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       /* best-effort */
     }
     const fallbackExe = resolveJavaExecutable();
@@ -172,7 +173,7 @@ export async function checkHealth(): Promise<HealthResult> {
       javaExe = fallbackExe;
       result = await runProcess(javaExe, ["-version"], 10000);
       log(
-        `[Z-Transplit ODL] checkHealth: retry javaExe="${javaExe}" exitCode=${result.exitCode}`,
+        `[文献译读 ODL] checkHealth: retry javaExe="${javaExe}" exitCode=${result.exitCode}`,
       );
     }
   }
@@ -224,7 +225,7 @@ function resolveJavaExecutable(): string | null {
       file.initWithPath(managed);
       if (file.exists() && file.isExecutable()) return managed;
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       /* bad cached path — fall through */
     }
   }
@@ -235,7 +236,7 @@ function resolveJavaExecutable(): string | null {
       file.initWithPath(path);
       return file;
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       return null;
     }
   };
@@ -309,7 +310,7 @@ export async function execJar(
     const { getManagedJavaExe } = await import("./JavaRuntimeManager");
     await getManagedJavaExe();
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient.execJar: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient.execJar: " + e);
     /* best-effort: fall through to system detection */
   }
   const javaExe = resolveJavaExecutable();
@@ -355,7 +356,7 @@ async function execJava(
 // files, and none of the disk probes in getJarPath can ever succeed — this
 // was the root cause of the misleading「解析组件缺失（未找到 jar 文件）」
 // dialog on every normal (install-from-xpi) setup. On first use we extract
-// core/pdf/lib/<jar> from the XPI into {DataDir}/ztransplit/lib/, verified
+// core/pdf/lib/<jar> from the XPI into {DataDir}/wenxianyidu/lib/, verified
 // against the SHA-256 that the PROVENANCE*.json shipped next to the jar
 // declares; the verified copy is reused via a session memo, re-extracted
 // when it goes missing or its hash stops matching (plugin update, truncated
@@ -384,7 +385,7 @@ function joinPath(...parts: string[]): string {
   return parts.join("/");
 }
 
-/** {DataDir}/ztransplit/lib/ — where packed installs get their jars unpacked. */
+/** {DataDir}/wenxianyidu/lib/ — where packed installs get their jars unpacked. */
 function extractedJarPaths(jarFileName: string): { dir: string; target: string } {
   const dataDir = (globalThis as any).Zotero?.DataDirectory?.dir;
   if (!dataDir) {
@@ -392,7 +393,7 @@ function extractedJarPaths(jarFileName: string): { dir: string; target: string }
       "Zotero.DataDirectory.dir is unavailable; cannot stage extracted jars",
     );
   }
-  const dir = joinPath(String(dataDir), "ztransplit", "lib");
+  const dir = joinPath(String(dataDir), "wenxianyidu", "lib");
   return { dir, target: joinPath(dir, jarFileName) };
 }
 
@@ -422,7 +423,7 @@ function pathFromFileUrl(fileUrl: string): string | null {
       .QueryInterface(Ci.nsIFileURL).file;
     return file?.path || null;
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     return null;
   }
 }
@@ -434,7 +435,7 @@ function zipHasEntry(zipReader: any, entryPath: string): boolean {
       return !!zipReader.hasEntry(entryPath);
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     /* fall through to getEntry */
   }
   try {
@@ -462,7 +463,7 @@ function readZipEntryText(zipReader: any, entryPath: string): string {
       .get("TmpD", Ci.nsIFile);
   const tmpFile = tmpDir.clone();
   tmpFile.append(
-    `ztransplit-zipread-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    `wenxianyidu-zipread-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
   zipReader.extract(entryPath, tmpFile);
   try {
@@ -471,7 +472,7 @@ function readZipEntryText(zipReader: any, entryPath: string): string {
     try {
       if (tmpFile.exists()) tmpFile.remove(false);
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
 }
@@ -498,19 +499,19 @@ function readProvenanceSha256(
         }
       } catch (e) {
         safeDebug(
-          `[Z-Transplit ODL] provenance entry ${name} unreadable: ${e}`,
+          `[文献译读 ODL] provenance entry ${name} unreadable: ${e}`,
         );
       }
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
   }
   return null;
 }
 
 /**
  * Extract core/pdf/lib/<jarFileName> from the packed XPI at `xpiPath` into
- * {DataDir}/ztransplit/lib/ and return the on-disk path.
+ * {DataDir}/wenxianyidu/lib/ and return the on-disk path.
  *
  * An existing extracted copy is reused only after its SHA-256 matches the
  * provenance reference (so a plugin update or a corrupted file triggers a
@@ -550,7 +551,7 @@ export async function extractJarFromPackedXpi(
       const actual = await sha256Hex(await IOUtils.read(target));
       if (actual === expected) return target;
       log(
-        `[Z-Transplit ODL] extracted jar hash mismatch (${jarFileName}), re-extracting: ${target}`,
+        `[文献译读 ODL] extracted jar hash mismatch (${jarFileName}), re-extracting: ${target}`,
       );
     }
 
@@ -570,7 +571,7 @@ export async function extractJarFromPackedXpi(
       try {
         await IOUtils.setPermissions(staging, 0o644);
       } catch (e) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       }
       if (expected) {
         const hash = await sha256Hex(await IOUtils.read(staging));
@@ -586,19 +587,19 @@ export async function extractJarFromPackedXpi(
       try {
         await IOUtils.remove(staging, { ignoreAbsent: true });
       } catch (e2) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e2);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e2);
       }
       throw e;
     }
     log(
-      `[Z-Transplit ODL] extracted ${jarFileName} from packed XPI → ${target}`,
+      `[文献译读 ODL] extracted ${jarFileName} from packed XPI → ${target}`,
     );
     return target;
   } finally {
     try {
       zipReader.close();
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
 }
@@ -646,12 +647,12 @@ async function readPinnedJarMeta(
           );
         } catch (e) {
           safeDebug(
-            `[Z-Transplit ODL] provenance file ${name} unreadable: ${e}`,
+            `[文献译读 ODL] provenance file ${name} unreadable: ${e}`,
           );
         }
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
   if (sources.packedXpiPath) {
@@ -676,7 +677,7 @@ async function readPinnedJarMeta(
             raw.push(JSON.parse(readZipEntryText(zipReader, name)));
           } catch (e) {
             safeDebug(
-              `[Z-Transplit ODL] provenance entry ${name} unreadable: ${e}`,
+              `[文献译读 ODL] provenance entry ${name} unreadable: ${e}`,
             );
           }
         }
@@ -684,11 +685,11 @@ async function readPinnedJarMeta(
         try {
           zipReader.close();
         } catch (e) {
-          safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+          safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
         }
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
   for (const meta of raw) {
@@ -715,35 +716,34 @@ async function readPinnedJarMeta(
  */
 function makeJarDownloadProgress(): ((p: DownloadProgress) => void) | undefined {
   try {
-    const win = new (Zotero as any).ProgressWindow({
+    const win = createOwnedProgressWindow({
       window: (Zotero as any).getMainWindow?.() || null,
     });
     win.changeHeadline(getString("odl-jar-download-window"));
+    // 一行原地更新：24 MB 的下载会回调数百次，追加式描述会堆成一列历史记录。
+    const row = createProgressRow(win, getString("odl-jar-download-probe"));
     win.show();
-    let lastStep = -1;
     return (p: DownloadProgress) => {
       try {
-        if (p.phase === "downloading") {
-          // 每个网络分片都会触发进度事件（24MB 可达数百次），按 10% 步进汇报。
-          const step = Math.floor((p.percent || 0) / 10) * 10;
-          if (step === lastStep) return;
-          lastStep = step;
-        }
         if (p.phase === "failed") {
-          win.addDescription(
+          row.setText(
             "✗ " + (p.message || getString("odl-error-jar-download-failed")),
           );
-          win.startCloseTimer?.(15000);
+          scheduleProgressClose(win, 15000);
           return;
         }
-        if (p.message) win.addDescription(p.message);
-        if (p.phase === "done") win.startCloseTimer?.(6000);
+        if (p.message) row.setText(p.message);
+        if (p.phase === "downloading") row.setProgress(Number(p.percent) || 0);
+        if (p.phase === "done") {
+          row.complete();
+          scheduleProgressClose(win, 6000);
+        }
       } catch (e) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       }
     };
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     return undefined;
   }
 }
@@ -764,7 +764,7 @@ async function resolveLibSources(): Promise<{
   const Cc = (Components as any).classes;
   const Ci = (Components as any).interfaces;
   const addonID =
-    (globalThis as any).addon?.data?.config?.addonID || "ztransplit@zotero.org";
+    (globalThis as any).addon?.data?.config?.addonID || "wenxianyidu@wenxianyidu.local";
 
   // Where a PACKED XPI lives, when the install turns out to be packed. Set
   // from rootURI (authoritative) first, or from the profile scan below.
@@ -784,14 +784,14 @@ async function resolveLibSources(): Promise<{
   //                                               recorded as the packedXpi
   //                                               source
   //  4. relative fallbacks under baseDir / the scaffold build tree
-  //  5. extraction from the packed XPI into {DataDir}/ztransplit/lib/
+  //  5. extraction from the packed XPI into {DataDir}/wenxianyidu/lib/
   let rawDir =
     (Zotero as any).getAddonDirectory?.(addonID) ||
     (Zotero as any).getAddon?.(addonID)?.getInstallPath?.() ||
     null;
 
   // M-22e-2: getInstallPath() on Zotero 9 may return a nsIURI whose .path is
-  // empty (e.g. resource://ztransplit@zotero.org/) or a "jar:..." string. Both
+  // empty (e.g. resource://wenxianyidu@wenxianyidu.local/) or a "jar:..." string. Both
   // look truthy but carry no usable filesystem path. Discard them so the
   // profile-scan fallback below actually runs.
   if (rawDir) {
@@ -827,7 +827,7 @@ async function resolveLibSources(): Promise<{
     //    "file:///C:/.../extensions/<addonID>/" — convert directly via
     //    nsIFileURL to the addon directory.
     const uriStr = typeof rootURI !== "undefined" ? rootURI : "";
-    log(`[Z-Transplit ODL] getJarPath: rootURI="${uriStr}"`);
+    log(`[文献译读 ODL] getJarPath: rootURI="${uriStr}"`);
     try {
       if (uriStr.startsWith("file:")) {
         const uriFile = (
@@ -838,7 +838,7 @@ async function resolveLibSources(): Promise<{
         if (uriFile?.path) rawDir = uriFile;
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       /* not a file: URI — fall through to the profile scan */
     }
     //    A jar:-wrapped rootURI means the plugin is installed PACKED — the
@@ -849,7 +849,7 @@ async function resolveLibSources(): Promise<{
       if (jarFileUrl) {
         packedXpiSource = pathFromFileUrl(jarFileUrl);
         log(
-          `[Z-Transplit ODL] getJarPath: packed XPI from rootURI = "${packedXpiSource}"`,
+          `[文献译读 ODL] getJarPath: packed XPI from rootURI = "${packedXpiSource}"`,
         );
       }
     }
@@ -868,12 +868,12 @@ async function resolveLibSources(): Promise<{
         ) as nsIFile;
         const extDir = profileFile.clone();
         extDir.append("extensions");
-        log(`[Z-Transplit ODL] getJarPath: extDir="${extDir.path}"`);
+        log(`[文献译读 ODL] getJarPath: extDir="${extDir.path}"`);
         if (extDir.exists() && extDir.isDirectory()) {
           const entries = extDir.directoryEntries;
           // <addonID>.xpi is a FILE, not a directory tree — the old code
           // accepted it as rawDir and built impossible paths like
-          // "…\ztransplit@zotero.org.xpi\core\pdf\lib\…". Remember it as
+          // "…\wenxianyidu@wenxianyidu.local.xpi\core\pdf\lib\…". Remember it as
           // the packed-install source for the extraction fallback instead.
           let packedXpiEntry: string | null = null;
           while (entries.hasMoreElements()) {
@@ -887,7 +887,7 @@ async function resolveLibSources(): Promise<{
               try {
                 if (entry.isFile()) packedXpiEntry = entry.path;
               } catch (e) {
-                safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+                safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
               }
               continue;
             }
@@ -899,19 +899,19 @@ async function resolveLibSources(): Promise<{
                   break;
                 }
               } catch (e) {
-                safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+                safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
               }
             }
           }
           if (!packedXpiSource && packedXpiEntry) {
             packedXpiSource = packedXpiEntry;
             log(
-              `[Z-Transplit ODL] getJarPath: packed XPI from profile scan = "${packedXpiSource}"`,
+              `[文献译读 ODL] getJarPath: packed XPI from profile scan = "${packedXpiSource}"`,
             );
           }
         }
       } catch (e) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
         /* profile scan failed — fall through to relative-path candidates */
       }
     }
@@ -933,7 +933,7 @@ export async function getJarPath(
     try {
       if (await IOUtils.exists(memoed)) return memoed;
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
     extractedJarMemo.delete(jarFileName);
   }
@@ -942,7 +942,7 @@ export async function getJarPath(
   const { baseDir, packedXpiSource } = await resolveLibSources();
 
   log(
-    `[Z-Transplit ODL] getJarPath: baseDir="${baseDir}" PathUtils.join=${!!join}`,
+    `[文献译读 ODL] getJarPath: baseDir="${baseDir}" PathUtils.join=${!!join}`,
   );
 
   const relative = ["core", "pdf", "lib", jarFileName];
@@ -957,7 +957,7 @@ export async function getJarPath(
     try {
       if (await IOUtils.exists(joined)) return joined;
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       /* fall through */
     }
   }
@@ -990,12 +990,12 @@ export async function getJarPath(
         exists = await (Zotero.File as any).exists(candidate);
       }
       log(
-        `[Z-Transplit ODL] getJarPath candidate: ${candidate} → ${exists ? "FOUND" : "not found"}`,
+        `[文献译读 ODL] getJarPath candidate: ${candidate} → ${exists ? "FOUND" : "not found"}`,
       );
       if (exists) return candidate;
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
-      log(`[Z-Transplit ODL] getJarPath candidate: ${candidate} → ERROR`);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
+      log(`[文献译读 ODL] getJarPath candidate: ${candidate} → ERROR`);
       // ignore and try next candidate
     }
   }
@@ -1014,12 +1014,12 @@ export async function getJarPath(
       // Loud: losing this detail is the difference between "works" and the
       // misleading「解析组件缺失」dialog.
       safeDebug(
-        `[Z-Transplit ODL] getJarPath: extraction from packed XPI failed: ${e}`,
+        `[文献译读 ODL] getJarPath: extraction from packed XPI failed: ${e}`,
       );
       try {
         (globalThis as any).Zotero?.logError?.(e);
       } catch (e2) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e2);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e2);
         /* best-effort */
       }
     }
@@ -1052,12 +1052,12 @@ export async function getJarPath(
         jarDownloadFailed.add(jarFileName);
         lastJarProvisionFailure = String(e);
         safeDebug(
-          `[Z-Transplit ODL] getJarPath: download fallback failed: ${e}`,
+          `[文献译读 ODL] getJarPath: download fallback failed: ${e}`,
         );
         try {
           (globalThis as any).Zotero?.logError?.(e);
         } catch (e2) {
-          safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e2);
+          safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e2);
           /* best-effort */
         }
       }
@@ -1071,11 +1071,11 @@ export async function getJarPath(
       ? `${baseDir}/${relative.join("/")}`
       : `./core/pdf/lib/${jarFileName}`,
   );
-  log(`[Z-Transplit ODL] getJarPath fallback: ${fallback}`);
+  log(`[文献译读 ODL] getJarPath fallback: ${fallback}`);
   return fallback;
 }
 
-/** 设置面板「解析组件」小节的状态读数（Zotero.ZTransplit.odlJar.getStatus）。 */
+/** 设置面板「解析组件」小节的状态读数（Zotero.WenxianYidu.odlJar.getStatus）。 */
 export interface OdlJarStatus {
   /** 组件当前可用（落地副本指纹相符，或随包内置/解包安装树里存在）。 */
   present: boolean;
@@ -1105,7 +1105,7 @@ function packedXpiBundlesJar(xpiPath: string, jarFileName: string): boolean {
     try {
       zipReader.close();
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
 }
@@ -1145,7 +1145,7 @@ export async function getOdlJarStatus(
       };
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
   }
 
   // 2) 打包安装：jar 内置在 XPI 里（完整版构建）。
@@ -1155,7 +1155,7 @@ export async function getOdlJarStatus(
         return { present: true, version, source: "bundled" };
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
 
@@ -1167,7 +1167,7 @@ export async function getOdlJarStatus(
         return { present: true, version, source: "bundled", path: candidate };
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     }
   }
 
@@ -1175,7 +1175,7 @@ export async function getOdlJarStatus(
 }
 
 /**
- * 「下载 / 修复」入口（Zotero.ZTransplit.odlJar.install）：清掉会话失败
+ * 「下载 / 修复」入口（Zotero.WenxianYidu.odlJar.install）：清掉会话失败
  * 登记与已验证副本备忘后重走 getJarPath——落地副本完好且指纹相符时直接
  * 返回，缺失或损坏时触发解压/下载（进度窗口挂在主窗口）。取不到组件时
  * 抛错，错误消息带上最后一次下载失败的细节供界面归因。
@@ -1192,7 +1192,7 @@ export async function installOdlJar(
       return status.path;
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
   }
   jarDownloadFailed.delete(jarFileName);
   extractedJarMemo.delete(jarFileName);
@@ -1202,7 +1202,7 @@ export async function installOdlJar(
   try {
     ok = await IOUtils.exists(path);
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
   }
   if (!ok) {
     throw new Error(
@@ -1215,6 +1215,24 @@ export async function installOdlJar(
 }
 
 // ─── External process runner ────────────────────────────────────────────────
+/** Offline import accepts only the exact parser version pinned in this build. */
+export async function importOdlJar(sourcePath: string): Promise<string> {
+  const name = "opendataloader-pdf-cli.jar";
+  const sources = await resolveLibSources();
+  const meta = await readPinnedJarMeta(name, { baseDir: sources.baseDir, packedXpiPath: sources.packedXpiSource });
+  if (!meta?.sha256) throw new Error("缺少本版本解析组件校验信息，请重新安装插件。");
+  const IO = (globalThis as any).IOUtils;
+  const bytes = await IO.read(sourcePath);
+  if (await sha256Hex(bytes) !== meta.sha256) throw new Error("组件版本或校验值不匹配。请选择本版本文档指定的 JAR 文件。");
+  const dir = joinPath((Zotero as any).DataDirectory.dir, "wenxianyidu", "lib");
+  const target = joinPath(dir, name);
+  await IO.makeDirectory(dir, { createAncestors: true, ignoreExisting: true });
+  await IO.write(target, bytes, { tmpPath: `${target}.tmp` });
+  jarDownloadFailed.delete(name);
+  extractedJarMemo.set(name, target);
+  lastJarProvisionFailure = null;
+  return target;
+}
 //
 // Windows: Zotero's Subprocess.sys.mjs (CreateProcessW + Job Object) launches
 //   the JVM directly from a raw argv — no .bat, no cmd.exe, no capture files —
@@ -1393,7 +1411,7 @@ async function runProcessWindows(
       try {
         signal.removeEventListener("abort", onAbort);
       } catch (e) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       }
       onAbort = null;
     }
@@ -1594,7 +1612,7 @@ function runProcessUnix(
     const ts = Date.now();
     const makeFile = (suffix: string) => {
       const f = tmpDir.clone();
-      f.append(`ztransplit-odl-${ts}-${suffix}.txt`);
+      f.append(`wenxianyidu-odl-${ts}-${suffix}.txt`);
       return f.path;
     };
     const stdoutPath = makeFile("out");
@@ -1615,7 +1633,7 @@ function runProcessUnix(
         f.initWithPath(path);
         if (f.exists()) f.remove(false);
       } catch (e) {
-        safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+        safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       }
     };
 
@@ -1625,7 +1643,7 @@ function runProcessUnix(
         try {
           signal?.removeEventListener("abort", onAbort);
         } catch (e) {
-          safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+          safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
         }
         onAbort = null;
       }
@@ -1810,7 +1828,7 @@ async function killProcessTree(proc: any): Promise<void> {
         try {
           tkProc.runwAsync(["/T", "/F", "/PID", String(pid)], 4, obs);
         } catch (e) {
-          safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+          safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
           resolve();
         }
         // Never hang the timeout path on taskkill itself.
@@ -1820,11 +1838,11 @@ async function killProcessTree(proc: any): Promise<void> {
     }
     proc.kill();
   } catch (e) {
-    safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+    safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
     try {
       proc.kill();
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       /* already dead */
     }
   }
@@ -1841,7 +1859,7 @@ export function writeTempFile(content: string, ext: string): string {
       .get("TmpD", Ci.nsIFile);
 
   const file = tmpDir.clone();
-  file.append(`ztransplit-odl-${Date.now()}.${ext}`);
+  file.append(`wenxianyidu-odl-${Date.now()}.${ext}`);
 
   const stream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(
     Ci.nsIFileOutputStream,
@@ -1867,7 +1885,7 @@ export function createTempDir(): string {
       .get("TmpD", Ci.nsIFile);
 
   const dir = tmpDir.clone();
-  dir.append(`ztransplit-odl-${Date.now()}`);
+  dir.append(`wenxianyidu-odl-${Date.now()}`);
   dir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, 0o700);
   return dir.path;
 }
@@ -1914,7 +1932,7 @@ export function removePath(path: string): Promise<void> {
         file.remove(true);
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       // best-effort
     }
     resolve();
@@ -1972,7 +1990,7 @@ async function runOpenDataLoader(
   options?: OpenDataLoaderPdfParseOptions,
 ): Promise<{ success: true; raw: string } | { success: false; error: string }> {
   const jarPath = await getJarPath();
-  log(`[Z-Transplit ODL] runOpenDataLoader: jarPath="${jarPath}"`);
+  log(`[文献译读 ODL] runOpenDataLoader: jarPath="${jarPath}"`);
   const Cc = (Components as any).classes;
   const Ci = (Components as any).interfaces;
   const jarFile = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
@@ -1985,7 +2003,7 @@ async function runOpenDataLoader(
     };
   }
   const exists = jarFile.exists();
-  log(`[Z-Transplit ODL] runOpenDataLoader: jarFile.exists() = ${exists}`);
+  log(`[文献译读 ODL] runOpenDataLoader: jarFile.exists() = ${exists}`);
   if (!exists) {
     // 附上下载兜底的失败细节（如有）：错误分类据此把「重新安装插件」换成
     // 「检查网络后重试」——精简版安装里 jar 缺失的真正原因通常是下载失败。
@@ -2024,6 +2042,14 @@ async function runOpenDataLoader(
       // Caller can override the pref-derived default (e.g. the translate
       // pipeline always wants "embedded" so figures are recovered).
       options?.imageOutput ?? config.imageOutput,
+      // By default the jar DROPS page headers/footers from the JSON, and ODL
+      // classifies the whole top-of-page cluster as a "header" — which on page
+      // 1 is the paper title, subtitle and the first section heading (verified
+      // against the single-column fixture: 19 selectable blocks became 14
+      // translated ones and the title stayed English). Ask for them explicitly;
+      // OpenDataLoaderJsonAdapter inlines real headings/first-page header text
+      // and still skips running heads and page numbers.
+      "--include-header-footer",
     ];
 
     if (config.useStructTree) {
@@ -2047,19 +2073,19 @@ async function runOpenDataLoader(
     args.push(filePath);
 
     safeDebug(
-      `[Z-Transplit ODL] spawning JVM: java -jar "${jarPath}" ${args.map((a) => JSON.stringify(a)).join(" ")}`,
+      `[文献译读 ODL] spawning JVM: java -jar "${jarPath}" ${args.map((a) => JSON.stringify(a)).join(" ")}`,
     );
 
     const result = await execJava(args, config.timeout * 1000, options?.signal); // M-20
 
     safeDebug(
-      `[Z-Transplit ODL] JVM exited: code=${result.exitCode} timedOut=${result.timedOut} aborted=${result.aborted || false}`,
+      `[文献译读 ODL] JVM exited: code=${result.exitCode} timedOut=${result.timedOut} aborted=${result.aborted || false}`,
     );
     if (result.stderr) {
-      log(`[Z-Transplit ODL] JVM stderr: ${result.stderr.slice(0, 2000)}`);
+      log(`[文献译读 ODL] JVM stderr: ${result.stderr.slice(0, 2000)}`);
     }
     if (result.stdout) {
-      log(`[Z-Transplit ODL] JVM stdout: ${result.stdout.slice(0, 2000)}`);
+      log(`[文献译读 ODL] JVM stdout: ${result.stdout.slice(0, 2000)}`);
     }
 
     if (options?.signal?.aborted) {
@@ -2092,7 +2118,7 @@ async function runOpenDataLoader(
     try {
       raw = await readFile(outputPath);
     } catch (e) {
-      safeDebug("[Z-Transplit] OpenDataLoaderPdfClient: " + e);
+      safeDebug("[文献译读] OpenDataLoaderPdfClient: " + e);
       const dirFile = Cc["@mozilla.org/file/local;1"].createInstance(
         Ci.nsIFile,
       );
@@ -2114,14 +2140,14 @@ async function runOpenDataLoader(
           allFiles.push(entry.leafName);
         }
         safeDebug(
-          `[Z-Transplit ODL] no ${ext} in ${outputDir}; files: ${allFiles.join(", ") || "(empty)"}`,
+          `[文献译读 ODL] no ${ext} in ${outputDir}; files: ${allFiles.join(", ") || "(empty)"}`,
         );
         return {
           success: false,
           error: `No ${ext} output found in ${outputDir}`,
         };
       }
-      log(`[Z-Transplit ODL] using alternate output: ${found}`);
+      log(`[文献译读 ODL] using alternate output: ${found}`);
       raw = await readFile(found);
     }
 
@@ -2129,7 +2155,7 @@ async function runOpenDataLoader(
       return { success: false, error: `Conversion produced no ${ext} output` };
     }
 
-    log(`[Z-Transplit ODL] parse succeeded: ${raw.length} chars`);
+    log(`[文献译读 ODL] parse succeeded: ${raw.length} chars`);
 
     return { success: true, raw };
   } finally {

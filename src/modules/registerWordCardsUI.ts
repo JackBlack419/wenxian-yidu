@@ -27,10 +27,10 @@ import { getString } from "../utils/locale";
 import { safeDebug } from "../utils/logger";
 
 /** Element id of the injected library toolbar button (idempotency key). */
-const BUTTON_ID = "ztransplit-wordcards-button";
+const BUTTON_ID = "wenxianyidu-wordcards-button";
 
 /** Element id of the injected Tools-menu item (idempotency key). */
-const TOOLS_MENUITEM_ID = "ztransplit-tools-wordcards";
+const TOOLS_MENUITEM_ID = "wenxianyidu-tools-wordcards";
 
 /**
  * Tools-menu anchors, by menupopup id then menu id. Both Zotero 7.0.15 and 10
@@ -106,7 +106,7 @@ export function registerWordCardsUIForWindow(win: any): void {
     }
     if ((entry.button || entry.toolsItem) && !existing) tracked.push(entry);
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCards: window injection failed: " + e);
+    safeDebug("[文献译读] wordCards: window injection failed: " + e);
   }
 }
 
@@ -122,7 +122,7 @@ function injectLibraryToolbarButton(
     const toolbar = resolveToolbar(doc);
     if (!toolbar) {
       safeDebug(
-        "[Z-Transplit] wordCards: no library toolbar anchor found — library button skipped",
+        "[文献译读] wordCards: no library toolbar anchor found — library button skipped",
       );
       return null;
     }
@@ -136,7 +136,7 @@ function injectLibraryToolbarButton(
     // this addon (see the QA note in addon/content/icons/).
     button.setAttribute(
       "style",
-      "list-style-image: url(chrome://ztransplit/content/icons/wordcards-16.svg);",
+      "list-style-image: url(chrome://wenxianyidu/content/icons/wordcards-16.svg);",
     );
     button.addEventListener("command", () => {
       void import("../ui/wordCardsTab").then((mod) =>
@@ -144,10 +144,10 @@ function injectLibraryToolbarButton(
       );
     });
     toolbar.appendChild(button);
-    safeDebug("[Z-Transplit] wordCards: library toolbar button injected");
+    safeDebug("[文献译读] wordCards: library toolbar button injected");
     return button;
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCards: library button injection failed: " + e);
+    safeDebug("[文献译读] wordCards: library button injection failed: " + e);
     return null;
   }
 }
@@ -173,7 +173,7 @@ function injectToolsMenuItem(win: any, doc: Document): any | null {
     }
     if (!popup) {
       safeDebug(
-        "[Z-Transplit] wordCards: no Tools menu found — tools entry skipped",
+        "[文献译读] wordCards: no Tools menu found — tools entry skipped",
       );
       return null;
     }
@@ -187,10 +187,10 @@ function injectToolsMenuItem(win: any, doc: Document): any | null {
       );
     });
     popup.appendChild(menuitem);
-    safeDebug("[Z-Transplit] wordCards: Tools menu item injected");
+    safeDebug("[文献译读] wordCards: Tools menu item injected");
     return menuitem;
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCards: tools item injection failed: " + e);
+    safeDebug("[文献译读] wordCards: tools item injection failed: " + e);
     return null;
   }
 }
@@ -217,7 +217,7 @@ export function unregisterWordCardsUI(): void {
     try {
       Reader.unregisterEventListener("renderToolbar", readerToolbarHandler);
     } catch (e) {
-      safeDebug("[Z-Transplit] wordCards: reader listener revoke failed: " + e);
+      safeDebug("[文献译读] wordCards: reader listener revoke failed: " + e);
     }
   }
   readerToolbarHandler = null;
@@ -250,8 +250,8 @@ function resolveToolbar(doc: Document): Element | null {
 // Reader toolbar button
 // ─────────────────────────────────────────────────────────────────────────────
 
-const READER_STYLE_ID = "ztransplit-wordcards-reader-style";
-const READER_BUTTON_CLASS = "ztransplit-wc-reader-btn";
+const READER_STYLE_ID = "wenxianyidu-wordcards-reader-style";
+const READER_BUTTON_CLASS = "wenxianyidu-wc-reader-btn";
 
 const READER_BUTTON_CSS = `
 .${READER_BUTTON_CLASS} {
@@ -273,7 +273,7 @@ function registerReaderToolbarButton(): void {
   const Reader = (globalThis as any)?.Zotero?.Reader;
   if (!Reader || typeof Reader.registerEventListener !== "function") {
     safeDebug(
-      "[Z-Transplit] wordCards: Zotero.Reader.registerEventListener unavailable — reader button skipped",
+      "[文献译读] wordCards: Zotero.Reader.registerEventListener unavailable — reader button skipped",
     );
     return;
   }
@@ -283,7 +283,7 @@ function registerReaderToolbarButton(): void {
       if (!doc || typeof append !== "function") return;
       append(buildReaderButton(doc));
     } catch (e) {
-      safeDebug("[Z-Transplit] wordCards: reader button build failed: " + e);
+      safeDebug("[文献译读] wordCards: reader button build failed: " + e);
     }
   };
   Reader.registerEventListener("renderToolbar", readerToolbarHandler, addonID());

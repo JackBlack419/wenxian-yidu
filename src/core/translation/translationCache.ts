@@ -8,7 +8,7 @@
  * and across engine runs with identical configuration.
  *
  * Storage layout: one small JSON file per record, bucketed by the key prefix —
- *   {DataDir}/ztransplit/translation-cache/v1/<key[0:2]>/<key>.json
+ *   {DataDir}/wenxianyidu/translation-cache/v1/<key[0:2]>/<key>.json
  * One-file-per-record needs no locking, tolerates independent corruption
  * (a broken file is skipped, not fatal) and makes LRU pruning a plain scan.
  *
@@ -62,7 +62,7 @@ function dataRoot(): string | null {
 function cacheRoot(): string | null {
   const root = dataRoot();
   if (!root) return null;
-  return joinPath(root, "ztransplit", "translation-cache", `v${CACHE_VERSION}`);
+  return joinPath(root, "wenxianyidu", "translation-cache", `v${CACHE_VERSION}`);
 }
 
 /**
@@ -85,7 +85,7 @@ function joinPath(...parts: string[]): string {
 
 /** SHA-1 hex via the SubtleCrypto available in Gecko and Node 16+. */
 async function sha1Hex(text: string): Promise<string> {
-  const subtle = (globalThis as any)?.crypto?.subtle;
+  const subtle = (globalThis as any)?.crypto?.subtle ?? (globalThis as any).Zotero?.getMainWindow?.()?.crypto?.subtle;
   if (!subtle) return "";
   const data = new TextEncoder().encode(text);
   const digest = await subtle.digest("SHA-1", data);
@@ -166,12 +166,13 @@ async function writeRecord(rec: CacheRecord): Promise<void> {
   try {
     const IOUtils = (globalThis as any).IOUtils;
     if (!IOUtils?.write || !IOUtils?.makeDirectory) return;
-    const bucket = path.slice(0, path.lastIndexOf("/"));
+    const bucket = (globalThis as any).PathUtils?.parent?.(path)
+      ?? path.slice(0, Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")));
     // makeDirectory with createDirs creates intermediate directories.
-    await IOUtils.makeDirectory(bucket, { createDirs: true, ignoreExisting: true });
-    await IOUtils.write(path, new TextEncoder().encode(JSON.stringify(rec)));
+    await IOUtils.makeDirectory(bucket, { createAncestors: true, ignoreExisting: true });
+    await IOUtils.write(path, new TextEncoder().encode(JSON.stringify(rec)), { tmpPath: `${path}.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp` });
   } catch (e) {
-    safeDebug("[Z-Transplit] translationCache write failed: " + e);
+    safeDebug("[文献译读] translationCache write failed: " + e);
   }
 }
 
@@ -305,7 +306,7 @@ export async function pruneCache(maxBytes: number): Promise<number> {
     }
     return removed;
   } catch (e) {
-    safeDebug("[Z-Transplit] translationCache prune failed: " + e);
+    safeDebug("[文献译读] translationCache prune failed: " + e);
     return 0;
   }
 }
@@ -320,6 +321,6 @@ export async function clearCacheDirectory(): Promise<void> {
       await IOUtils.remove(root, { recursive: true });
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] translationCache clear failed: " + e);
+    safeDebug("[文献译读] translationCache clear failed: " + e);
   }
 }

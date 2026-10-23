@@ -10,7 +10,7 @@
  *   - isJavaMissingCause 优先读 PdfParseError.reason（结构化），消息文本只
  *     作回退——管道错误在传播中被外壳包装 / 本地化替换，文本匹配会漏。
  *
- * vitest 环境无 Localization，getString 返回 `ztransplit-<key>` 本身，
+ * vitest 环境无 Localization，getString 返回 `wenxianyidu-<key>` 本身，
  * 断言按 key 前缀进行。
  */
 import { describe, it, expect } from "vitest";
@@ -21,7 +21,7 @@ import {
 } from "../../../../src/core/pdf/splitview/splitViewFactory";
 import { PdfParseError } from "../../../../src/core/pdf/PdfParseError";
 
-const KEY = (id: string) => `ztransplit-${id}`;
+const KEY = (id: string) => `wenxianyidu-${id}`;
 
 describe("friendlyOdlError — HTTP 状态码分类", () => {
   it("401/403 映射到密钥无效文案", () => {
@@ -105,7 +105,7 @@ describe("friendlyOdlError — 组件 jar 错误的两类文案", () => {
     ).toBe(KEY("odl-error-jar-missing"));
     expect(
       friendlyOdlError(
-        "OpenDataLoader JAR is missing. Reinstall Z-Transplit to restore opendataloader-pdf-cli.jar.",
+        "OpenDataLoader JAR is missing. Reinstall 文献译读 to restore opendataloader-pdf-cli.jar.",
       ),
     ).toBe(KEY("odl-error-jar-missing"));
   });

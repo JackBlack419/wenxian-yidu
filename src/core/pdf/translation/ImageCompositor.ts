@@ -85,7 +85,7 @@ export async function compositeFormulas(
       });
       stats.imagesRendered++;
     } catch (e) {
-      safeDebug("[Z-Transplit] ImageCompositor: " + e);
+      safeDebug("[文献译读] ImageCompositor: " + e);
       stats.imagesDropped++;
     }
   }

@@ -17,20 +17,20 @@ export function parseJsonFromMarkdown(content: string): any {
     try {
       return JSON.parse(codeBlockMatch[1].trim());
     } catch (e) {
-      safeDebug(`[Z-Transplit] parseJsonFromMarkdown: ${String(e)}`);
+      safeDebug(`[文献译读] parseJsonFromMarkdown: ${String(e)}`);
       // fall through
     }
   }
   try {
     return JSON.parse(content.trim());
   } catch (e) {
-    safeDebug(`[Z-Transplit] parseJsonFromMarkdown: ${String(e)}`);
+    safeDebug(`[文献译读] parseJsonFromMarkdown: ${String(e)}`);
     const jsonMatch = content.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (jsonMatch) {
       try {
         return JSON.parse(jsonMatch[1]);
       } catch (e2) {
-        safeDebug(`[Z-Transplit] parseJsonFromMarkdown: ${String(e2)}`);
+        safeDebug(`[文献译读] parseJsonFromMarkdown: ${String(e2)}`);
         return null;
       }
     }

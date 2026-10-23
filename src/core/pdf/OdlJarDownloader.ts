@@ -137,10 +137,10 @@ async function probeSource(source: JarSource): Promise<number> {
       return Date.now() - start;
     }
     safeDebug(
-      `[Z-Transplit ODL] mirror probe unexpected status ${resp?.status} (${source.id})`,
+      `[文献译读 ODL] mirror probe unexpected status ${resp?.status} (${source.id})`,
     );
   } catch (e) {
-    safeDebug(`[Z-Transplit ODL] mirror probe failed (${source.id}): ${e}`);
+    safeDebug(`[文献译读 ODL] mirror probe failed (${source.id}): ${e}`);
   }
   return Number.POSITIVE_INFINITY;
 }
@@ -255,7 +255,7 @@ async function installJarFromArchive(
       try {
         await IOUtils.setPermissions(staging, 0o644);
       } catch (e) {
-        safeDebug("[Z-Transplit ODL] staging chmod skipped: " + e);
+        safeDebug("[文献译读 ODL] staging chmod skipped: " + e);
       }
       const hash = await sha256Hex(await IOUtils.read(staging));
       if (hash !== meta.sha256) {
@@ -269,19 +269,19 @@ async function installJarFromArchive(
       try {
         await IOUtils.remove(staging, { ignoreAbsent: true });
       } catch (e2) {
-        safeDebug("[Z-Transplit ODL] " + e2);
+        safeDebug("[文献译读 ODL] " + e2);
       }
       throw e;
     }
     safeDebug(
-      `[Z-Transplit ODL] jar installed from ${archivePath} → ${paths.target}`,
+      `[文献译读 ODL] jar installed from ${archivePath} → ${paths.target}`,
     );
     return paths.target;
   } finally {
     try {
       zipReader.close();
     } catch (e) {
-      safeDebug("[Z-Transplit ODL] " + e);
+      safeDebug("[文献译读 ODL] " + e);
     }
   }
 }
@@ -294,11 +294,20 @@ export function downloadPinnedJar(
   paths: { dir: string; target: string },
   onProgress?: ProgressCallback,
 ): Promise<string> {
-  if (downloadInFlight) return downloadInFlight;
-  downloadInFlight = runDownload(meta, paths, onProgress).finally(() => {
-    downloadInFlight = null;
+  if (!downloadInFlight) {
+    downloadInFlight = runDownload(meta, paths, onProgress).finally(() => {
+      downloadInFlight = null;
+    });
+  }
+  // Every caller's progress window needs a terminal event, including callers
+  // sharing a download and failures before mirror selection.
+  return downloadInFlight.then(path => {
+    onProgress?.({ percent: 100, phase: "done" });
+    return path;
+  }, error => {
+    onProgress?.({ percent: 100, phase: "failed", message: getString("odl-error-jar-download-failed") });
+    throw error;
   });
-  return downloadInFlight;
 }
 
 async function runDownload(
@@ -317,15 +326,14 @@ async function runDownload(
     if (await IOUtils.exists(paths.target)) {
       const actual = await sha256Hex(await IOUtils.read(paths.target));
       if (actual === meta.sha256) {
-        onProgress?.({ percent: 100, phase: "done" });
         return paths.target;
       }
       safeDebug(
-        `[Z-Transplit ODL] existing jar hash mismatch, redownloading: ${paths.target}`,
+        `[文献译读 ODL] existing jar hash mismatch, redownloading: ${paths.target}`,
       );
     }
   } catch (e) {
-    safeDebug("[Z-Transplit ODL] " + e);
+    safeDebug("[文献译读 ODL] " + e);
   }
 
   const sources = buildSources(meta);
@@ -369,14 +377,9 @@ async function runDownload(
       }
     } catch (e) {
       failures.push(`${source.id}: ${e}`);
-      safeDebug(`[Z-Transplit ODL] source ${source.id} failed: ${e}`);
+      safeDebug(`[文献译读 ODL] source ${source.id} failed: ${e}`);
     }
   }
   const message = `ODL jar download failed (${failures.join("; ")})`;
-  onProgress?.({
-    percent: 100,
-    phase: "failed",
-    message: getString("odl-error-jar-download-failed"),
-  });
   throw new Error(message);
 }

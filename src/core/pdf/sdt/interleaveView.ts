@@ -3,13 +3,13 @@
  * view and switches between its three presentation states.
  *
  * Injection model: for every translatable original block, a sibling
- * `<div class="ztransplit-bi">` is inserted directly after it (original on
+ * `<div class="wenxianyidu-bi">` is inserted directly after it (original on
  * top, translation below). The originals are NEVER mutated — our blocks are
  * pure siblings, so exit = remove our nodes and nothing else changes. The
  * three states are pure CSS on the container root:
  *
- *   ztransplit-bi-mode-interleave  original + translation both visible
- *   ztransplit-bi-mode-trans-only  originals hidden (translations remain)
+ *   wenxianyidu-bi-mode-interleave  original + translation both visible
+ *   wenxianyidu-bi-mode-trans-only  originals hidden (translations remain)
  *   (mode-off removes everything — handled by exitInterleave)
  *
  * In trans-only mode a click on a translation block temporarily reveals its
@@ -39,6 +39,7 @@ import {
 } from "../../translation/translationCache";
 import type { BatchTranslator } from "../../translation/types";
 import { splitSentences } from "../../readAloud/sentenceSplitter";
+import { protectInlineMath } from "./inlineMath";
 
 export type BilingualMode = "interleave" | "transOnly";
 
@@ -50,6 +51,7 @@ export interface TranslatedReadSegment {
 }
 
 export interface InterleaveHandle {
+  translateAll(): void;
   setMode(mode: BilingualMode): void;
   getMode(): BilingualMode;
   stats(): QueueStats;
@@ -74,40 +76,41 @@ export interface InterleaveOptions {
   batchTranslate: BatchTranslator;
   signal?: AbortSignal;
   onProgress?: (stats: QueueStats) => void;
+  onReturn?: () => Promise<void>;
 }
 
-const BI_CLASS = "ztransplit-bi";
+const BI_CLASS = "wenxianyidu-bi";
 const MODE_CLASSES = {
-  interleave: "ztransplit-bi-mode-interleave",
-  transOnly: "ztransplit-bi-mode-trans-only",
+  interleave: "wenxianyidu-bi-mode-interleave",
+  transOnly: "wenxianyidu-bi-mode-trans-only",
 };
 
 /** Inject the <style> rules into the SDT document (once per session). */
 function ensureStyle(doc: Document): void {
-  if (doc.getElementById("ztransplit-bi-style")) return;
+  if (doc.getElementById("wenxianyidu-bi-style")) return;
   const style = doc.createElement("style");
-  style.id = "ztransplit-bi-style";
+  style.id = "wenxianyidu-bi-style";
   style.textContent = `
 .${BI_CLASS} {
   margin: 0.35em 0 0.8em 0;
   padding: 0.55em 0.8em;
-  border-inline-start: 3px solid var(--ztransplit-accent, #1f9e8d);
-  background: var(--ztransplit-bi-bg, rgba(31, 158, 141, 0.08));
+  border-inline-start: 3px solid var(--wenxianyidu-accent, #1f9e8d);
+  background: var(--wenxianyidu-bi-bg, rgba(31, 158, 141, 0.08));
   border-radius: 4px;
   font-size: 0.95em;
   line-height: 1.65;
-  color: var(--ztransplit-bi-text, inherit);
+  color: var(--wenxianyidu-bi-text, inherit);
   white-space: pre-wrap;
   min-height: 1.2em;
 }
-.${BI_CLASS} .ztransplit-bi-placeholder {
+.${BI_CLASS} .wenxianyidu-bi-placeholder {
   opacity: 0.55;
-  animation: ztransplit-bi-pulse 1.4s ease-in-out infinite;
+  animation: wenxianyidu-bi-pulse 1.4s ease-in-out infinite;
 }
-.${BI_CLASS} .ztransplit-bi-error {
-  color: var(--ztransplit-bi-error, #b3261e);
+.${BI_CLASS} .wenxianyidu-bi-error {
+  color: var(--wenxianyidu-bi-error, #b3261e);
 }
-.${BI_CLASS} .ztransplit-bi-retry {
+.${BI_CLASS} .wenxianyidu-bi-retry {
   margin-inline-start: 0.6em;
   cursor: pointer;
   text-decoration: underline;
@@ -117,13 +120,13 @@ function ensureStyle(doc: Document): void {
   font: inherit;
   padding: 0;
 }
-.${BI_CLASS} .ztransplit-sent {
+.${BI_CLASS} .wenxianyidu-sent {
   border-radius: 2px;
 }
-.${BI_CLASS} .ztransplit-sent-active {
+.${BI_CLASS} .wenxianyidu-sent-active {
   background: rgba(245, 158, 11, 0.34);
 }
-@keyframes ztransplit-bi-pulse {
+@keyframes wenxianyidu-bi-pulse {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 0.25; }
 }
@@ -132,10 +135,10 @@ function ensureStyle(doc: Document): void {
  * with equal !important the hider's higher specificity would otherwise win
  * and leave a BLANK page (found in the README screenshot round: trans-only
  * rendered nothing at all). */
-#sdt-content.ztransplit-bi-mode-trans-only > [data-ref-path]:not(.${BI_CLASS}) {
+#sdt-content.wenxianyidu-bi-mode-trans-only > [data-ref-path]:not(.${BI_CLASS}) {
   display: none !important;
 }
-.ztransplit-bi-mode-trans-only .${BI_CLASS} {
+.wenxianyidu-bi-mode-trans-only .${BI_CLASS} {
   display: block !important;
 }
 /* Translation-only peek: clicking a translation block reveals the original
@@ -144,15 +147,15 @@ function ensureStyle(doc: Document): void {
  * with both rules !important the peek wins. data-peek is a transient view
  * state on official elements — cleared on every mode switch, on dispose, and
  * never written to anything but the display. */
-#sdt-content.ztransplit-bi-mode-trans-only > [data-ref-path]:not(.${BI_CLASS})[data-peek] {
+#sdt-content.wenxianyidu-bi-mode-trans-only > [data-ref-path]:not(.${BI_CLASS})[data-peek] {
   display: block !important;
 }
-#sdt-content.ztransplit-bi-mode-trans-only > [data-ref-path][data-peek] {
-  background: var(--ztransplit-bi-bg, rgba(31, 158, 141, 0.08));
-  border-inline-start: 3px solid var(--ztransplit-accent, #1f9e8d);
+#sdt-content.wenxianyidu-bi-mode-trans-only > [data-ref-path][data-peek] {
+  background: var(--wenxianyidu-bi-bg, rgba(31, 158, 141, 0.08));
+  border-inline-start: 3px solid var(--wenxianyidu-accent, #1f9e8d);
   border-radius: 4px;
 }
-.ztransplit-bi-mode-trans-only .${BI_CLASS} {
+.wenxianyidu-bi-mode-trans-only .${BI_CLASS} {
   cursor: pointer;
 }
 `;
@@ -177,13 +180,24 @@ export async function buildInterleave(
   const injected = new Map<string, HTMLElement>(); // refPath → our block
   const texts = new Map<string, string>();
   const translations = new Map<string, string>();
+  const rich = new Map(session.blocks.map(block => [block.refPath, protectInlineMath(block.el, block.text)]));
+  const byText = new Map([...rich.values()].map(value => [value.text, value]));
+  const cacheSource = (text: string) => byText.get(text)?.cacheText ?? text;
+  const controls = doc.createElement("div");
+  controls.className = "wenxianyidu-bi-controls";
+  controls.style.cssText = "position:sticky;top:0;z-index:5;padding:8px;background:var(--material-background,#fff);display:flex;justify-content:flex-end";
+  const back = doc.createElement("button");
+  back.type = "button"; back.textContent = getString("split-return-original");
+  back.style.cssText = "cursor:pointer;padding:6px 12px;border:1px solid #aaa;border-radius:5px;font:inherit;color:inherit;background:transparent";
+  back.addEventListener("click", () => { back.disabled = true; void options.onReturn?.().catch(() => { back.disabled = false; }); });
+  controls.appendChild(back); session.container.prepend(controls);
 
   const makeBlockEl = (block: SdtBlock): HTMLElement => {
     const el = doc.createElement("div");
     el.className = BI_CLASS;
     el.dataset.refPath = block.refPath;
     const ph = doc.createElement("span");
-    ph.className = "ztransplit-bi-placeholder";
+    ph.className = "wenxianyidu-bi-placeholder";
     ph.textContent = getString("bilingual-placeholder");
     el.appendChild(ph);
     return el;
@@ -196,7 +210,7 @@ export async function buildInterleave(
     texts.set(block.refPath, block.text);
   }
   safeDebug(
-    "[Z-Transplit] interleaveView: injected " + injected.size +
+    "[文献译读] interleaveView: injected " + injected.size +
       " blocks (session.blocks=" + session.blocks.length + ")",
   );
 
@@ -243,22 +257,28 @@ export async function buildInterleave(
       return;
     }
     // The block's retry button keeps its click for itself.
-    if (target?.closest?.(".ztransplit-bi-retry")) return;
+    if (target?.closest?.(".wenxianyidu-bi-retry")) return;
     const refPath = (bi as HTMLElement).dataset?.refPath;
     const original = refPath ? originals.get(refPath) : undefined;
     if (!original) {
       clearPeek();
       return;
     }
-    if (peeked === original) {
+    // List translations are lifted out of the hidden list in trans-only mode.
+    // Reveal their original list as context when the user asks to peek.
+    let peekOriginal: Element = original;
+    while (peekOriginal.parentElement && peekOriginal.parentElement !== session.container) {
+      peekOriginal = peekOriginal.parentElement;
+    }
+    if (peeked === peekOriginal) {
       clearPeek();
       return;
     }
     clearPeek();
-    peeked = original;
+    peeked = peekOriginal;
     try {
-      original.setAttribute("data-peek", "");
-      original.scrollIntoView?.({ block: "nearest" });
+      peekOriginal.setAttribute("data-peek", "");
+      peekOriginal.scrollIntoView?.({ block: "nearest" });
     } catch {
       /* display state only — a failure here must not break the click */
     }
@@ -271,7 +291,7 @@ export async function buildInterleave(
     ? async (list: string[]): Promise<Map<string, string>> => {
         const keys = await Promise.all(
           list.map((t) =>
-            cacheKey(options.cacheIdentity as string, "auto", options.targetLanguage, t),
+            cacheKey(options.cacheIdentity as string, "auto", options.targetLanguage, cacheSource(t)),
           ),
         );
         const cached = await getCachedTranslations(keys);
@@ -290,7 +310,7 @@ export async function buildInterleave(
           options.cacheIdentity as string,
           "auto",
           options.targetLanguage,
-          text,
+          cacheSource(text),
           translated,
         );
       }
@@ -301,17 +321,17 @@ export async function buildInterleave(
     translations.set(refPath, translated);
     const el = injected.get(refPath);
     if (!el) return;
-    el.textContent = translated;
+    rich.get(refPath)!.render(el, translated);
   };
   const renderError = (refPath: string): void => {
     const el = injected.get(refPath);
     if (!el) return;
     el.textContent = "";
     const span = doc.createElement("span");
-    span.className = "ztransplit-bi-error";
+    span.className = "wenxianyidu-bi-error";
     span.textContent = getString("bilingual-block-failed");
     const retry = doc.createElement("button");
-    retry.className = "ztransplit-bi-retry";
+    retry.className = "wenxianyidu-bi-retry";
     retry.type = "button";
     retry.textContent = getString("bilingual-retry");
     retry.addEventListener("click", () => queue.retry(refPath));
@@ -321,10 +341,10 @@ export async function buildInterleave(
   const renderLoading = (refPath: string): void => {
     const el = injected.get(refPath);
     if (!el) return;
-    if (el.querySelector(".ztransplit-bi-placeholder")) return;
+    if (el.querySelector(".wenxianyidu-bi-placeholder")) return;
     el.textContent = "";
     const ph = doc.createElement("span");
-    ph.className = "ztransplit-bi-placeholder";
+    ph.className = "wenxianyidu-bi-placeholder";
     ph.textContent = getString("bilingual-placeholder");
     el.appendChild(ph);
   };
@@ -339,7 +359,7 @@ export async function buildInterleave(
     new Map(
       Array.from(injected.entries()).map(([refPath, placeholder]) => {
         const block = session.blocks.find((b) => b.refPath === refPath) as SdtBlock;
-        return [refPath, { text: block.text, placeholder }];
+        return [refPath, { text: rich.get(refPath)!.text, placeholder }];
       }),
     ),
     {
@@ -347,7 +367,7 @@ export async function buildInterleave(
         const result = await options.batchTranslate(list, signal);
         return {
           translations: result.translations,
-          failedIndices: result.failedIndices,
+          failedIndices: [...new Set([...result.failedIndices, ...list.flatMap((text, i) => byText.get(text)?.valid(result.translations[i] || "") === false ? [i] : [])])],
         };
       },
       lookup,
@@ -370,6 +390,7 @@ export async function buildInterleave(
   queue.start();
 
   return {
+    translateAll: () => queue.translateAll(),
     setMode(mode: BilingualMode) {
       session.container.classList.remove(MODE_CLASSES.interleave, MODE_CLASSES.transOnly);
       session.container.classList.add(
@@ -378,6 +399,19 @@ export async function buildInterleave(
       // The peek's display override is trans-only-only, so any mode switch
       // invalidates it; the pointer affordance and hint follow the mode.
       clearPeek();
+      for (const block of session.blocks) {
+        if (block.el.tagName !== "LI") continue;
+        const translated = injected.get(block.refPath)!;
+        if (mode === "transOnly") {
+          let list: Element = block.el;
+          while (list.parentElement && list.parentElement !== session.container) {
+            list = list.parentElement;
+          }
+          list.before(translated);
+        } else {
+          block.el.after(translated);
+        }
+      }
       for (const el of injected.values()) {
         try {
           if (mode === "transOnly") {
@@ -398,11 +432,11 @@ export async function buildInterleave(
     stats: () => queue.stats(),
     retry: (refPath: string) => queue.retry(refPath),
     currentRefPath: () => queue.currentRefPath(),
-    translationOf: (refPath: string) => translations.get(refPath) || "",
+    translationOf: (refPath: string) => rich.get(refPath)?.plain(translations.get(refPath) || "") || "",
     translatedReadSegments: () => {
       const out: TranslatedReadSegment[] = [];
       for (const block of session.blocks) {
-        const text = translations.get(block.refPath);
+        const text = rich.get(block.refPath)?.plain(translations.get(block.refPath) || "");
         if (!text) continue;
         splitSentences(text).forEach((sentence, sentenceIndex) => {
           out.push({
@@ -419,14 +453,15 @@ export async function buildInterleave(
       if (!el || text === undefined) return;
       el.textContent = "";
       if (sentenceIndex < 0) {
-        el.textContent = text;
+        rich.get(refPath)!.render(el, text);
         return;
       }
+      if (rich.get(refPath)?.hasMath) { rich.get(refPath)!.render(el, text); return; }
       const spans = splitSentences(text);
       spans.forEach((sentence, i) => {
         if (i === sentenceIndex) {
           const span = doc.createElement("span");
-          span.className = "ztransplit-sent ztransplit-sent-active";
+          span.className = "wenxianyidu-sent wenxianyidu-sent-active";
           span.textContent = sentence.text;
           el.appendChild(span);
         } else {
@@ -441,6 +476,7 @@ export async function buildInterleave(
     },
     async dispose() {
       queue.stop();
+      controls.remove();
       session.container.removeEventListener("click", onContainerClick);
       // data-peek is the one transient state we ever put on official
       // elements — strip it so exit leaves the view exactly as found.
@@ -455,7 +491,7 @@ export async function buildInterleave(
       injected.clear();
       translations.clear();
       session.container.classList.remove(MODE_CLASSES.interleave, MODE_CLASSES.transOnly);
-      const style = doc.getElementById("ztransplit-bi-style");
+      const style = doc.getElementById("wenxianyidu-bi-style");
       style?.remove();
       await session.exit();
     },
@@ -464,5 +500,5 @@ export async function buildInterleave(
 
 /** Best-effort debug logging helper re-export for consistency. */
 export function logInterleave(msg: string): void {
-  safeDebug("[Z-Transplit] interleaveView: " + msg);
+  safeDebug("[文献译读] interleaveView: " + msg);
 }

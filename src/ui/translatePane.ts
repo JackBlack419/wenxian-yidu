@@ -1,59 +1,19 @@
 /**
- * translatePane — native-DOM port of leadero's React `TranslatePanel`.
+ * Selection translation panel, adapted from leadero's TranslatePanel.
+ * Native PDF popup events and reflow DOM selection share a debounced path.
+ * The current reflow document takes priority over hidden PDF ranges.
  *
- * Behavioural contract (ported 1:1 from
- * leadero/src/react/components/Sidebar/TranslatePanel.tsx):
- *
- *   - On mount, read the CURRENT reader's selection
- *     (`reader._internalReader._primaryView._selectionRanges`); multiple
- *     ranges are joined with a blank line.
- *   - Live selection sync: Zotero's official reader event
- *     「renderTextSelectionPopup」 (one shared listener per process, fanned out
- *     to panes by item identity) re-reads the selection ~250 ms after the user
- *     completes a selection — no manual 「刷新选区」 click needed. A re-fire
- *     for an unchanged selection is a no-op. The event's own annotation text
- *     (what the popup shows) outranks the `_selectionRanges` re-read, which
- *     can be stale when the selection landed in a different reader view
- *     (see resolveSelectionText).
- *   - Three blocks: source text (with a 「刷新选区」 button) → language bar
- *     (auto-detect source → target-language input, defaulting to
- *     `Zotero.locale`, Enter triggers, IME composition does not; a blur or
- *     Enter with an unchanged language never retriggers; plus an
- *     「自动翻译」 checkbox bound to `translate.auto` that fires the pending
- *     selection the moment it is turned on) → result area.
- *   - Result area has four states: loading (CSS skeleton breathing lines),
- *     error (message + retry), success (translation + copy), idle (selection
- *     ready but auto-translate off → a 「翻译」 button — never a repeated
- *     「请选择文本」 placeholder). A copy failure keeps the result on screen
- *     and appends a transient failure hint instead of discarding it.
- *   - `translate.auto` is read LIVE (at refresh time), never cached at mount.
- *   - Failure ≠ empty: a missing engine module, an empty translation, an
- *     unready engine or an over-long selection all surface an explicit error.
- *     No silent empty state anywhere.
- *   - Translation runs in the chrome realm by importing
- *     src/core/translation/translationEngines directly — there is no
- *     window/React bridge (leadero's LeaderoAPI.translate).
- *   - Word extension: a single-word selection (and wordcards.enabled) is
- *     looked up as a dictionary card (src/core/translation/dictionaryCard.ts)
- *     and every lookup is recorded in the word-card store
- *     (src/core/wordcards/wordCardStore.ts); a recent-words chip strip under
- *     the result area re-renders stored cards without touching the network.
- *
- * Differences forced by the port (also listed in the run's deviations):
- *   - No React: the whole panel is built with native DOM nodes
- *     (`createElementNS` in the XHTML namespace, so it renders correctly in
- *     Zotero 7's chrome document) and styled with a single injected
- *     `<style>` element that is removed again on destroy.
- *   - leadero's clipboard / IME helpers are inlined (the repo has no
- *     src/utils/clipboard.ts or src/utils/ime.ts); their three-tier copy
- *     chain and the isComposing/keyCode-229 guard are preserved.
- *   - Two capability disclosures leadero could not have: no reader at all,
- *     and a Zotero build without `_selectionRanges`.
+ * Auto translation follows the live preference. A new selection or destroy
+ * cancels the previous request; stale results cannot replace the current one.
+ * Optional dictionary lookups share the result area and recent word cards.
+ * DOM, clipboard and IME handling run in Zotero's chrome realm.
  */
 
 import { getString } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 import { config } from "../../package.json";
+import { getSplitReader } from "./readerContext";
+import { readReflowSelection, subscribeReflowSelection } from "../core/pdf/sdt/selectionBridge";
 import { createAbortController } from "../utils/abort";
 import { toErrorMessage } from "../utils/error";
 import { isIMEComposing } from "../utils/ime";
@@ -67,6 +27,7 @@ import {
   putCachedTranslation,
 } from "../core/translation/translationCache";
 import { checkTranslationReadiness } from "../core/translation/featureReadiness";
+import { ensureEngineAvailable } from "../core/translation/engineSelection";
 import {
   flattenCardText,
   isSingleWord,
@@ -81,7 +42,7 @@ import {
 import type { WordCardRecord } from "../core/wordcards/wordCardStore";
 
 /** Class prefix for every node this module creates. */
-const CLS = "ztransplit-tp";
+const CLS = "wenxianyidu-tp";
 
 /** Word cards shown in the recent-words chip strip under the result area. */
 const CHIP_COUNT = 10;
@@ -92,7 +53,7 @@ export type TranslatePaneStatus = "idle" | "loading" | "success" | "error";
 /** Outcome of reading the reader's current selection. */
 type SelectionRead =
   /** Selection resolved to a non-empty string. */
-  | { kind: "text"; text: string }
+  | { kind: "text"; text: string; authoritative?: boolean }
   /** A reader is present but nothing is selected. */
   | { kind: "empty" }
   /** No reader for the current tab (nothing open / not initialised yet). */
@@ -409,7 +370,7 @@ export function resolveCurrentReader(doc: Document, itemID?: number): any {
     const Zotero_Tabs = win?.Zotero_Tabs ?? ZoteroGlobal?.Tabs;
     const tabID: string | undefined = Zotero_Tabs?.selectedID;
     if (!Reader?.getByTabID || !tabID) return null;
-    const reader = Reader.getByTabID(tabID);
+    const reader = getSplitReader(tabID) ?? Reader.getByTabID(tabID);
     if (!reader) return null;
     // This section is READER-ONLY (onItemChange enables it in reader tabs),
     // so the active tab's reader is always the one the user is looking at.
@@ -428,7 +389,7 @@ export function resolveCurrentReader(doc: Document, itemID?: number): any {
       )?.parentItemID;
       if (parentID !== itemID) {
         safeDebug(
-          "[Z-Transplit] translatePane: pane bound item " + itemID +
+          "[文献译读] translatePane: pane bound item " + itemID +
             " but active reader shows item " + reader.itemID +
             " — following the active reader",
         );
@@ -436,7 +397,7 @@ export function resolveCurrentReader(doc: Document, itemID?: number): any {
     }
     return reader;
   } catch (e) {
-    safeDebug("[Z-Transplit] translatePane: resolveCurrentReader failed: " + e);
+    safeDebug("[文献译读] translatePane: resolveCurrentReader failed: " + e);
     return null;
   }
 }
@@ -444,14 +405,20 @@ export function resolveCurrentReader(doc: Document, itemID?: number): any {
 /**
  * Read the current reader selection.
  *
- * Exactly leadero's access path — `_internalReader._primaryView._selectionRanges`
- * — with `_secondaryView` as a documented secondary attempt. `undefined`
+ * The active reflow document's DOM selection takes priority. In PDF mode use
+ * `_internalReader._primaryView._selectionRanges`, then `_secondaryView`. `undefined`
  * (rather than an empty array) is what distinguishes "API missing" from
  * "nothing selected", which is what keeps the empty state honest.
  */
 function readSelection(doc: Document, itemID?: number): SelectionRead {
   const reader = resolveCurrentReader(doc, itemID);
   if (!reader) return { kind: "no-reader" };
+
+  // Reflow mode hides the PDF, whose old ranges may still contain text.
+  const reflowText = readReflowSelection(reader);
+  if (reflowText !== null) return reflowText
+    ? { kind: "text", text: reflowText, authoritative: true }
+    : { kind: "empty" };
 
   let ranges: any[] | undefined;
   try {
@@ -460,7 +427,7 @@ function readSelection(doc: Document, itemID?: number): SelectionRead {
     ranges = internal._primaryView?._selectionRanges;
     if (ranges === undefined) ranges = internal._secondaryView?._selectionRanges;
   } catch (e) {
-    safeDebug("[Z-Transplit] translatePane: read selection failed: " + e);
+    safeDebug("[文献译读] translatePane: read selection failed: " + e);
     return { kind: "unsupported" };
   }
 
@@ -529,7 +496,7 @@ interface SelectionSyncTarget {
    * the popup carried none. It is the freshest picture of what the user sees
    * selected and takes precedence over the `_selectionRanges` re-read.
    */
-  onSelection(popupText?: string): void;
+  onSelection(popupText?: string, fromReflow?: boolean): void;
 }
 
 /** Live panes interested in selection changes (module scope, event fanned out). */
@@ -537,6 +504,17 @@ const selectionSyncTargets = new Set<SelectionSyncTarget>();
 
 /** Whether the ONE shared reader event listener is in place. */
 let readerSelectionListenerRegistered = false;
+let reflowSelectionListenerRegistered = false;
+
+function dispatchSelection(reader: any, text?: string, fromReflow = false): void {
+  for (const target of [...selectionSyncTargets]) {
+    try {
+      if (target.matchesReader(reader)) target.onSelection(text, fromReflow);
+    } catch (e) {
+      safeDebug("[文献译读] translatePane: selection sync target failed: " + e);
+    }
+  }
+}
 
 /**
  * Register the shared 「renderTextSelectionPopup」 listener once per process,
@@ -545,11 +523,15 @@ let readerSelectionListenerRegistered = false;
  * popup's own selection text (see SelectionSyncTarget.onSelection).
  */
 function ensureReaderSelectionSync(): void {
+  if (!reflowSelectionListenerRegistered) {
+    subscribeReflowSelection((reader, text) => dispatchSelection(reader, text, true));
+    reflowSelectionListenerRegistered = true;
+  }
   if (readerSelectionListenerRegistered) return;
   const Reader = (globalThis as any)?.Zotero?.Reader;
   if (typeof Reader?.registerEventListener !== "function") {
     safeDebug(
-      "[Z-Transplit] translatePane: Zotero.Reader.registerEventListener unavailable — live selection sync off",
+      "[文献译读] translatePane: Zotero.Reader.registerEventListener unavailable — live selection sync off",
     );
     return;
   }
@@ -566,22 +548,14 @@ function ensureReaderSelectionSync(): void {
           typeof event?.params?.annotation?.text === "string"
             ? event.params.annotation.text.trim()
             : "";
-        for (const target of [...selectionSyncTargets]) {
-          try {
-            if (target.matchesReader(reader)) target.onSelection(popupText);
-          } catch (e) {
-            safeDebug(
-              "[Z-Transplit] translatePane: selection sync target failed: " + e,
-            );
-          }
-        }
+        dispatchSelection(reader, popupText);
       },
       config.addonID,
     );
     readerSelectionListenerRegistered = true;
   } catch (e) {
     safeDebug(
-      "[Z-Transplit] translatePane: registerEventListener failed: " + e,
+      "[文献译读] translatePane: registerEventListener failed: " + e,
     );
   }
 }
@@ -968,11 +942,12 @@ export function mountTranslatePane(
    */
   async function runTranslation(text: string): Promise<void> {
     if (!text) return;
-
     // Any earlier request is superseded from here on, including by a guard
     // rejection below — otherwise a stale success could overwrite the error.
     abortController?.abort();
-    abortController = null;
+    const controller = createAbortController();
+    abortController = controller;
+    if (!await ensureEngineAvailable() || destroyed || controller.signal.aborted) return;
 
     // Readiness: an unconfigured engine is a configuration error, not a
     // translation failure — say which pref is missing.
@@ -1016,11 +991,12 @@ export function mountTranslatePane(
 
     // Resolve the translator from the chrome realm. A missing module is a
     // capability failure and must be disclosed as one (§9.4 失败≠空).
-    let createTranslator: (t: string, s?: string) => any;
+    let createTranslator: (t: string, s?: string, signal?: AbortSignal) => any;
     /** Engine-configuration fingerprint, shared with the persistent cache. */
     let engineIdentity: string | undefined;
     try {
       const mod = await loadTranslatorModule();
+      if (controller.signal.aborted || destroyed) return;
       createTranslator = mod?.createTranslator;
       if (typeof createTranslator !== "function") {
         throw new Error(
@@ -1032,6 +1008,7 @@ export function mountTranslatePane(
           ? String(mod.engineCacheIdentity())
           : undefined;
     } catch (e) {
+      if (controller.signal.aborted || destroyed) return;
       setState({
         status: "error",
         error: getString("pane-translate-error-service", {
@@ -1044,9 +1021,6 @@ export function mountTranslatePane(
     }
 
     // A newer request supersedes the previous one.
-    const controller = createAbortController();
-    abortController = controller;
-
     // A new request makes any stale copy-failure hint irrelevant.
     copyError = null;
     setState({ status: "loading", error: null, result: null });
@@ -1072,7 +1046,7 @@ export function mountTranslatePane(
         translated = hits.get(diskKey);
       }
       if (translated === undefined) {
-        const translator = createTranslator(target) as (
+        const translator = createTranslator(target, undefined, controller.signal) as (
           t: string,
           tgt?: string,
           src?: string,
@@ -1086,7 +1060,7 @@ export function mountTranslatePane(
             text,
             translated,
           ).catch((e) =>
-            safeDebug("[Z-Transplit] translatePane cache store: " + e),
+            safeDebug("[文献译读] translatePane cache store: " + e),
           );
         }
       }
@@ -1258,10 +1232,11 @@ export function mountTranslatePane(
    * trigger can be diagnosed from debug output.
    */
   function resolveSelectionText(read: SelectionRead): string {
+    if (read.kind === "text" && read.authoritative) return read.text;
     const rangeText = read.kind === "text" ? read.text : "";
     if (rangeText && lastPopupText && lastPopupText !== rangeText) {
       safeDebug(
-        "[Z-Transplit] translatePane: selection read is stale (ranges=" +
+        "[文献译读] translatePane: selection read is stale (ranges=" +
           JSON.stringify(rangeText.slice(0, 80)) +
           " popup=" +
           JSON.stringify(lastPopupText.slice(0, 80)) +
@@ -1296,7 +1271,7 @@ export function mountTranslatePane(
       setState({ copied: false });
       // Word selections route to the dictionary chain when the feature is on;
       // everything else keeps the plain-translation path.
-      wordMode = !!getPref("wordcards.enabled") && isSingleWord(text);
+      wordMode = getPref("translate.engineType") !== "mtranserver" && !!getPref("wordcards.enabled") && isSingleWord(text);
       // translate.auto is read LIVE — a pref flipped while the pane is open
       // takes effect on the next refresh.
       if (getPref("translate.auto")) {
@@ -1383,12 +1358,14 @@ export function mountTranslatePane(
         return false;
       }
     },
-    onSelection(popupText?: string): void {
+    onSelection(popupText?: string, fromReflow = false): void {
       if (destroyed) return;
+      if ((popupText || fromReflow) && popupText !== sourceText) { abortController?.abort(); abortController = null; }
       // Capture the popup's own text at event time (freshest); the debounced
       // re-read then adjudicates against it (resolveSelectionText). Empty
       // payloads never erase an existing hint.
-      if (popupText) lastPopupText = popupText;
+      if (fromReflow) lastPopupText = "";
+      else if (popupText) lastPopupText = popupText;
       // Coalesce the popup event's possible re-fires while the selection
       // gesture settles (drag re-renders) into one re-read.
       if (syncTimer) clearTimeout(syncTimer);
@@ -1439,7 +1416,7 @@ export function mountTranslatePane(
   }
   if (initial.kind === "text") {
     setState({ sourceText: initial.text });
-    wordMode = !!getPref("wordcards.enabled") && isSingleWord(initial.text);
+    wordMode = getPref("translate.engineType") !== "mtranserver" && !!getPref("wordcards.enabled") && isSingleWord(initial.text);
     if (getPref("translate.auto")) {
       if (wordMode) void runLookup(initial.text);
       else void runTranslation(initial.text);
@@ -1472,7 +1449,7 @@ export function mountTranslatePane(
           target.removeEventListener(type, handler);
         } catch (e) {
           safeDebug(
-            "[Z-Transplit] translatePane: removeEventListener failed: " + e,
+            "[文献译读] translatePane: removeEventListener failed: " + e,
           );
         }
       }
@@ -1480,7 +1457,7 @@ export function mountTranslatePane(
         root.remove();
         styleEl?.remove();
       } catch (e) {
-        safeDebug("[Z-Transplit] translatePane: DOM cleanup failed: " + e);
+        safeDebug("[文献译读] translatePane: DOM cleanup failed: " + e);
       }
       if (mountedPanes.get(body) === handle) mountedPanes.delete(body);
     },
@@ -1501,7 +1478,7 @@ function defaultTargetLang(): string {
     const pref = String(getPref("translate.targetLanguage") ?? "").trim();
     if (pref) return pref;
   } catch (e) {
-    safeDebug("[Z-Transplit] translatePane: targetLanguage pref unavailable: " + e);
+    safeDebug("[文献译读] translatePane: targetLanguage pref unavailable: " + e);
   }
   try {
     const locale =
@@ -1509,7 +1486,7 @@ function defaultTargetLang(): string {
       (globalThis as any)?.Zotero?.locale;
     if (typeof locale === "string" && locale) return locale;
   } catch (e) {
-    safeDebug("[Z-Transplit] translatePane: Zotero.locale unavailable: " + e);
+    safeDebug("[文献译读] translatePane: Zotero.locale unavailable: " + e);
   }
   return "zh-CN";
 }

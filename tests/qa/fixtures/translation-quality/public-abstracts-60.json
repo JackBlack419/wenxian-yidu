@@ -1,0 +1,306 @@
+{
+  "version": 1,
+  "sha256": "89cdc0c6d653be084fe460996047c80f27696e73060402a800c031c260f09e1d",
+  "cases": [
+    {
+      "id": "1",
+      "source": "https://arxiv.org/abs/1706.03762",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "2",
+      "source": "https://arxiv.org/abs/1706.03762",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "3",
+      "source": "https://arxiv.org/abs/1706.03762",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "4",
+      "source": "https://arxiv.org/abs/1810.04805",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "5",
+      "source": "https://arxiv.org/abs/1810.04805",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "6",
+      "source": "https://arxiv.org/abs/1810.04805",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "7",
+      "source": "https://arxiv.org/abs/1512.03385",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "8",
+      "source": "https://arxiv.org/abs/1512.03385",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "9",
+      "source": "https://arxiv.org/abs/1512.03385",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "10",
+      "source": "https://arxiv.org/abs/1406.2661",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "11",
+      "source": "https://arxiv.org/abs/1406.2661",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "12",
+      "source": "https://arxiv.org/abs/1406.2661",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "13",
+      "source": "https://arxiv.org/abs/1505.04597",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "14",
+      "source": "https://arxiv.org/abs/1505.04597",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "15",
+      "source": "https://arxiv.org/abs/1505.04597",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "16",
+      "source": "https://arxiv.org/abs/1412.6980",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "17",
+      "source": "https://arxiv.org/abs/1412.6980",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "18",
+      "source": "https://arxiv.org/abs/1412.6980",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "19",
+      "source": "https://arxiv.org/abs/1502.03167",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "20",
+      "source": "https://arxiv.org/abs/1502.03167",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "21",
+      "source": "https://arxiv.org/abs/1502.03167",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "22",
+      "source": "https://arxiv.org/abs/1409.1556",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "23",
+      "source": "https://arxiv.org/abs/1409.1556",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "24",
+      "source": "https://arxiv.org/abs/1409.1556",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "25",
+      "source": "https://arxiv.org/abs/1409.0473",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "26",
+      "source": "https://arxiv.org/abs/1409.0473",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "27",
+      "source": "https://arxiv.org/abs/1409.0473",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "28",
+      "source": "https://arxiv.org/abs/1603.05027",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "29",
+      "source": "https://arxiv.org/abs/1603.05027",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "30",
+      "source": "https://arxiv.org/abs/1603.05027",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "31",
+      "source": "https://arxiv.org/abs/1608.06993",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "32",
+      "source": "https://arxiv.org/abs/1608.06993",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "33",
+      "source": "https://arxiv.org/abs/1608.06993",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "34",
+      "source": "https://arxiv.org/abs/1611.07004",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "35",
+      "source": "https://arxiv.org/abs/1611.07004",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "36",
+      "source": "https://arxiv.org/abs/1611.07004",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "37",
+      "source": "https://arxiv.org/abs/1803.09820",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "38",
+      "source": "https://arxiv.org/abs/1803.09820",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "39",
+      "source": "https://arxiv.org/abs/1803.09820",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "40",
+      "source": "https://arxiv.org/abs/2005.14165",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "41",
+      "source": "https://arxiv.org/abs/2005.14165",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "42",
+      "source": "https://arxiv.org/abs/2005.14165",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "43",
+      "source": "https://arxiv.org/abs/2010.11929",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "44",
+      "source": "https://arxiv.org/abs/2010.11929",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "45",
+      "source": "https://arxiv.org/abs/2010.11929",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "46",
+      "source": "https://arxiv.org/abs/2103.00020",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "47",
+      "source": "https://arxiv.org/abs/2103.00020",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "48",
+      "source": "https://arxiv.org/abs/2103.00020",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "49",
+      "source": "https://arxiv.org/abs/1802.05365",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "50",
+      "source": "https://arxiv.org/abs/1802.05365",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "51",
+      "source": "https://arxiv.org/abs/1802.05365",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "52",
+      "source": "https://arxiv.org/abs/1906.08237",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "53",
+      "source": "https://arxiv.org/abs/1906.08237",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "54",
+      "source": "https://arxiv.org/abs/1906.08237",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "55",
+      "source": "https://arxiv.org/abs/2002.05709",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "56",
+      "source": "https://arxiv.org/abs/2002.05709",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "57",
+      "source": "https://arxiv.org/abs/2002.05709",
+      "sentenceIndex": 2
+    },
+    {
+      "id": "58",
+      "source": "https://arxiv.org/abs/1312.6114",
+      "sentenceIndex": 0
+    },
+    {
+      "id": "59",
+      "source": "https://arxiv.org/abs/1312.6114",
+      "sentenceIndex": 1
+    },
+    {
+      "id": "60",
+      "source": "https://arxiv.org/abs/1312.6114",
+      "sentenceIndex": 2
+    }
+  ]
+}

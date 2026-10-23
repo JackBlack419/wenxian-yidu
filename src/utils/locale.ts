@@ -49,7 +49,7 @@ function resolveLocalizationCtor(): any {
       return (Zotero as any).getGlobal("Localization");
     }
   } catch (e) {
-    safeDebug(`[Z-Transplit] resolveLocalizationCtor failed: ${String(e)}`);
+    safeDebug(`[文献译读] resolveLocalizationCtor failed: ${String(e)}`);
   }
   return undefined;
 }
@@ -57,7 +57,7 @@ function resolveLocalizationCtor(): any {
 export function initLocale() {
   const Ctor = resolveLocalizationCtor();
   if (!Ctor) {
-    safeDebug("[Z-Transplit] initLocale: Localization unavailable, skipped");
+    safeDebug("[文献译读] initLocale: Localization unavailable, skipped");
     return;
   }
   try {
@@ -67,11 +67,11 @@ export function initLocale() {
       data.locale = { current: l10n };
     }
   } catch (e) {
-    safeDebug(`[Z-Transplit] initLocale failed: ${String(e)}`);
+    safeDebug(`[文献译读] initLocale failed: ${String(e)}`);
   }
 }
 
-/** Fully qualified Fluent id for a bare message id (build prefixes with `ztransplit-`). */
+/** Fully qualified Fluent id for a bare message id (build prefixes with `wenxianyidu-`). */
 export function getLocaleID(localeString: string): string {
   return `${FTL_PREFIX}${localeString}`;
 }
@@ -97,7 +97,7 @@ export function getString(
     }
     return id;
   } catch (e) {
-    safeDebug(`[Z-Transplit] getString('${id}') failed: ${String(e)}`);
+    safeDebug(`[文献译读] getString('${id}') failed: ${String(e)}`);
     return id;
   }
 }

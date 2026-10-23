@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 构建 Z-Transplit 原文删除器 fat jar 并生成溯源清单。
+ * 构建 文献译读 原文删除器 fat jar 并生成溯源清单。
  *
  * 用法: node scripts/build-region-text-remover.cjs
  * 要求: PATH 上有 JDK 17+（javac 与 jar 工具）。
@@ -110,8 +110,8 @@ console.log("[build-region-text-remover] smoke ok (usage exit=2)");
 const bytes = fs.statSync(JAR_PATH).size;
 const sha256 = sha256File(JAR_PATH);
 const provenance = {
-  artifact: "org.ztransplit:region-text-remover:1.0.0",
-  name: "Z-Transplit Original-Text Remover",
+  artifact: "org.wenxianyidu:region-text-remover:1.0.0",
+  name: "文献译读 Original-Text Remover",
   version: "1.0.0",
   file: JAR_NAME,
   sha256,
@@ -122,7 +122,7 @@ const provenance = {
   bundledLicenses: [
     "Apache-2.0 (Apache PDFBox, Apache FontKit)",
     "Apache-2.0 (commons-logging)",
-    "AGPL-3.0-only (Z-Transplit 自有代码)",
+    "AGPL-3.0-only (文献译读 自有代码)",
   ],
   licenseSource: "构建脚本 java/region-text-remover/lib/ 内的依赖 jar 与 java/region-text-remover/src/ 自有源码",
   consumedBy: "src/core/pdf/OriginalTextRemovalClient.ts（java -jar 子进程，翻译前删除页面层原文）",

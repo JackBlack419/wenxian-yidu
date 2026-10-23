@@ -61,7 +61,7 @@ export function probeReaderCapabilities(reader: any): ReaderCapabilities {
     intlSegmenter: typeof (globalThis as any).Intl?.Segmenter === "function",
   };
   safeDebug(
-    `[Z-Transplit] capabilities: zotero=${caps.zoteroMajor} sdt=${caps.sdtModeAvailable} ` +
+    `[文献译读] capabilities: zotero=${caps.zoteroMajor} sdt=${caps.sdtModeAvailable} ` +
       `tts=${caps.speechSynthesis} segmenter=${caps.intlSegmenter}`,
   );
   return caps;

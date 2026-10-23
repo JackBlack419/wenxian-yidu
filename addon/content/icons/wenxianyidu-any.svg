@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 96 96">
+  <title>文献译读</title>
+  <!--
+    manifest 声明的插件图标（manifest.json 48/96），2026-10-09 随品牌标
+    改版换芯：墨圆盘保留，盘上 T 字换成侧边栏 translate.svg 的「文 / A
+    互换」母题（白笔画「文 / A」+ 绯红互换箭头），插件图标与功能图标
+    从此同一母题；缩放、加粗与光学配重推导见 logo.svg 头注释。
+    QA S7：manifest 图标必须显式配色、不随宿主主题变量着色；Zotero 取
+    插件图标不接受主题参数，插件管理器亮暗宿主都要可辨，故保留墨圆盘
+    作底（纯透明底墨笔画在深色宿主会没入背景，为 2026-09-30 记录过的
+    缺陷）。墨盘 = 原文版面，绯红 = 翻译/互换。
+  -->
+  <circle cx="48" cy="48" r="34" fill="#1a1a1a"/>
+  <g transform="translate(0 1.2)">
+    <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M36.4 26 L38.7 29.4"/>
+      <path d="M28.3 36.4 H46.8"/>
+      <path d="M37.6 36.4 L29.4 50.3"/>
+      <path d="M37.6 36.4 L45.7 50.3"/>
+      <path d="M51.5 67.7 L59.6 45.7"/>
+      <path d="M67.7 67.7 L59.6 45.7"/>
+      <path d="M55 59.6 H64.2"/>
+    </g>
+    <g fill="none" stroke="#b5343a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M56.1 28.3 L65.4 37.6"/>
+      <path d="M65.4 37.6 L60.2 37.6"/>
+      <path d="M65.4 37.6 L65.4 32.3"/>
+      <path d="M39.9 67.7 L30.6 58.4"/>
+      <path d="M30.6 58.4 L35.8 58.4"/>
+      <path d="M30.6 58.4 L30.6 63.7"/>
+    </g>
+  </g>
+</svg>

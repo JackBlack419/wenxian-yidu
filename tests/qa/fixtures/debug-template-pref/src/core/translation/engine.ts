@@ -6,7 +6,7 @@ export const AUTO = getPref("translate.auto");
 export const MAX = getPrefDynamic("translate.maxChars");
 export const ENGINE = getPrefDynamic("translate.engineType");
 export const GKEY = getPrefDynamic("translate.google.apiKey");
-export const ICON = "chrome://ztransplit/content/icons/translate.svg";
+export const ICON = "chrome://wenxianyidu/content/icons/translate.svg";
 function logMiss(key: string) {
   safeDebug(`getPref('${key}') missing`);
 }

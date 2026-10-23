@@ -87,7 +87,7 @@ export async function lookupYoudao(
     } catch (e) {
       // A network-level failure is likely to repeat for the next edition —
       // stop instead of burning the chain's time budget on dead endpoints.
-      safeDebug(`[Z-Transplit] youdaoDict (${le}) failed: ${toErrorMessage(e)}`);
+      safeDebug(`[文献译读] youdaoDict (${le}) failed: ${toErrorMessage(e)}`);
       return null;
     }
   }

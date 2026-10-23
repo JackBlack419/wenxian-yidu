@@ -304,6 +304,42 @@ function isHeaderFooter(el: ODLContentElement): el is ODLHeaderFooter {
   return el.type === "header" || el.type === "footer";
 }
 
+/** 纯页码 / 纯符号：不含任何字母的页眉页脚文字，永远无需翻译。 */
+function isPageNumberText(text: string): boolean {
+  return !/\p{L}/u.test(text);
+}
+
+/**
+ * 页眉页脚里值得当正文处理的子元素。
+ *
+ * OpenDataLoader 默认把每页顶部的整簇文字归入 "header"，第 1 页的 header 就是
+ * 论文标题、副标题和第一个小节标题——只按「running head 不翻译」丢弃会留下
+ * 英文标题（实测：可选文本 19 块，译文只覆盖 14 块）。这里保留：
+ *   - 真正的标题（H1/H2 等）与第 1 页页眉正文；
+ *   - 跨页重复的 running head / 页脚只取首次出现的文本（后续页跳过，避免同一
+ *     句在每页被重译、重绘）；
+ *   - 不含字母的纯页码直接丢弃。
+ */
+function headerFooterTextChildren(
+  container: ODLHeaderFooter,
+  seen: Set<string>,
+): Array<ODLHeading | ODLParagraph> {
+  const out: Array<ODLHeading | ODLParagraph> = [];
+  for (const child of Array.isArray(container.kids) ? container.kids : []) {
+    if (!isHeading(child) && !isParagraph(child)) continue;
+    const text = String(child.content ?? "").trim();
+    if (!text || isPageNumberText(text)) continue;
+    const key = text.replace(/\s+/g, " ").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ...child,
+      pageNumber: child.pageNumber ?? container.pageNumber,
+    });
+  }
+  return out;
+}
+
 function isCaption(el: ODLContentElement): el is ODLCaption {
   return el.type === "caption";
 }
@@ -363,9 +399,16 @@ export function adaptOpenDataLoaderJson(
   // Group kids by page number, preserving original order within each page.
   // OpenDataLoader already sorts by reading order when --reading-order=xycut.
   const byPage = new Map<number, ODLContentElement[]>();
+  // 跨页重复的 running head / 页脚只保留首次出现的文案（见
+  // headerFooterTextChildren）。Set 在整篇文档范围内共享，所以第 2 页重复的
+  // 标题不会再被翻译一次。
+  const seenHeaderFooterText = new Set<string>();
   for (const kid of root.kids) {
     const arr = byPage.get(kid.pageNumber) || [];
     arr.push(kid);
+    if (isHeaderFooter(kid)) {
+      arr.push(...headerFooterTextChildren(kid, seenHeaderFooterText));
+    }
     byPage.set(kid.pageNumber, arr);
   }
 

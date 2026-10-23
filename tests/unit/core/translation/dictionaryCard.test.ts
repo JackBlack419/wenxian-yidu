@@ -213,10 +213,11 @@ describe("lookupWord chain", () => {
   });
 
   it("degrades to the MT simple card when Youdao has no usable entry", async () => {
-    // Default engine google (no prefs), keyless endpoint.
+    // Dictionary opt-in still uses the selected MT provider for its last step.
+    setPrefs({ "translate.engineType": "youdao" });
     route(/dict\.youdao\.com/, () => jsonResponse({ simple: {}, web_trans: {} }));
-    route(/translate\.googleapis\.com/, () =>
-      jsonResponse([[["共振", "resonance", null, null, 10]], null, "en"]),
+    route(/aidemo\.youdao\.com/, () =>
+      jsonResponse({ errorCode: "0", translation: ["共振"] }),
     );
     const result = await lookupWord("resonance", "zh-CN");
     expect(result.source).toBe("mt");
@@ -224,7 +225,7 @@ describe("lookupWord chain", () => {
   });
 
   it("degrades to MT when the model card fails schema validation", async () => {
-    setPrefs({ "translate.ai.apiUrl": "https://ai.test/v1" });
+    setPrefs({ "translate.ai.apiUrl": "https://ai.test/v1", "translate.engineType": "youdao" });
     route(/dict\.youdao\.com/, () => jsonResponse({}));
     // senses: [] violates min(1) on both chatJson attempts → chain moves on.
     route(/ai\.test/, () =>
@@ -232,8 +233,8 @@ describe("lookupWord chain", () => {
         choices: [{ message: { content: JSON.stringify({ senses: [] }) } }],
       }),
     );
-    route(/translate\.googleapis\.com/, () =>
-      jsonResponse([[["翻译兜底", "fallback"]]]),
+    route(/aidemo\.youdao\.com/, () =>
+      jsonResponse({ errorCode: "0", translation: ["翻译兜底"] }),
     );
     const result = await lookupWord("wordy", "zh-CN");
     expect(result.source).toBe("mt");

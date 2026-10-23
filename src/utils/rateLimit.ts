@@ -85,15 +85,27 @@ export function retryAfterFromHeaders(headers: Headers | undefined): number | nu
   }
 }
 
+/** 供应商用这些状态报告「太频繁」：HTTP 429 与有道试用的 411。 */
+const RATE_LIMIT_STATUS = new Set([429, 411]);
+
 /**
- * 判定错误是否为 429。优先读 httpPost 系列与 openaiCompat 附着的
- * `status` 字段；兜底匹配「HTTP 429」消息前缀（覆盖未附着 status 的旧
- * 错误形态）。
+ * 消息兜底：HTTP 前缀（bing-web 的字符串错误）、有道/小牛的频率文案、
+ * OpenAI 兼容网关的 rate limit 文案。
+ */
+const RATE_LIMIT_MESSAGE =
+  /^HTTP 429[:\s]|请求频率过快|请求过于频繁|访问频率受限|rate[\s_-]?limit|too many requests/i;
+
+/**
+ * 判定错误是否为限流。优先读 httpPost 系列与 openaiCompat 附着的 `status`
+ * 字段（429 = HTTP 限流；411 = 有道免注册试用「请求频率过快」），再兜底匹配
+ * 消息形态：部分适配器把状态码包进字符串错误（bing-web 的 `HTTP 429: …`），
+ * 传统接口则回传供应商自己的错误码文案。
  */
 export function isRateLimitError(e: unknown): boolean {
   if (!e || typeof e !== "object") return false;
-  if ((e as { status?: unknown }).status === 429) return true;
-  return e instanceof Error && /^HTTP 429[:\s]/.test(e.message);
+  const status = (e as { status?: unknown }).status;
+  if (typeof status === "number" && RATE_LIMIT_STATUS.has(status)) return true;
+  return e instanceof Error && RATE_LIMIT_MESSAGE.test(e.message);
 }
 
 /** 读取错误上附着的 Retry-After 秒数（无则 null）。 */

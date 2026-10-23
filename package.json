@@ -1,26 +1,29 @@
 {
-  "name": "z-transplit",
+  "name": "wenxian-yidu",
   "type": "module",
-  "version": "1.12.1",
-  "description": "Zotero 10 plugin: text translation and layout-preserving PDF translation with split-screen reading.",
+  "version": "0.2.5",
+  "description": "免费开源的 Zotero 中文文献翻译：双栏、段落对照、划词和输入翻译。",
   "config": {
-    "addonName": "Z-Transplit",
-    "addonID": "ztransplit@zotero.org",
-    "addonRef": "ztransplit",
-    "addonInstance": "ZTransplit",
-    "prefsPrefix": "extensions.zotero.ztransplit"
+    "addonName": "文献译读",
+    "addonID": "wenxianyidu@wenxianyidu.local",
+    "addonRef": "wenxianyidu",
+    "addonInstance": "WenxianYidu",
+    "prefsPrefix": "extensions.zotero.wenxianyidu"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Liozhang/z-transplit.git"
+    "url": "git+https://github.com/JackBlack419/wenxian-yidu.git"
   },
-  "author": "z-transplit contributors",
-  "homepage": "https://github.com/Liozhang/z-transplit#readme",
+  "homepage": "https://jackblack419.github.io/wenxian-yidu/",
+  "bugs": { "url": "https://github.com/JackBlack419/wenxian-yidu/issues" },
+  "author": "文献译读 contributors; based on z-transplit contributors",
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "zotero-plugin serve",
     "build": "tsc --noEmit && zotero-plugin build",
     "test:unit": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "check:docs": "node scripts/check-docs.mjs",
     "check:structure": "node scripts/structure-check.mjs",
     "check:jar": "node scripts/check-jar-provenance.cjs",
     "test:qa": "node --experimental-strip-types tests/qa/harness-smoke.mjs && node tests/qa/structure-check-selftest.mjs"
@@ -34,6 +37,7 @@
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.13",
     "jsdom": "^29.1.1",
+    "jszip": "3.10.2",
     "typescript": "^5.8",
     "vitest": "^4",
     "zotero-plugin-scaffold": "^0.8.8",

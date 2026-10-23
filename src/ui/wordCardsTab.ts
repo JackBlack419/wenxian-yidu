@@ -38,10 +38,10 @@ import {
   type SpeechKind,
 } from "./wordCardSpeech";
 
-const CLS = "ztransplit-wc";
+const CLS = "wenxianyidu-wc";
 
 /** Fixed id of the single word-cards tab (registration + close + reopen). */
-export const WORDCARDS_TAB_ID = "ztransplit-wordcards";
+export const WORDCARDS_TAB_ID = "wenxianyidu-wordcards";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers (exported for tests)
@@ -311,7 +311,7 @@ export function openWordCardsTab(win: any): void {
     const Zotero_Tabs =
       win?.Zotero_Tabs ?? (globalThis as any)?.Zotero?.Tabs;
     if (!Zotero_Tabs?.add || typeof Zotero_Tabs.add !== "function") {
-      safeDebug("[Z-Transplit] wordCardsTab: Zotero_Tabs.add unavailable");
+      safeDebug("[文献译读] wordCardsTab: Zotero_Tabs.add unavailable");
       return;
     }
     // Focus the existing tab. Covers both a double open request and the
@@ -345,7 +345,7 @@ export function openWordCardsTab(win: any): void {
         // The wordcards glyph renders as the tab-bar icon; an empty string
         // would mean a title-only entry.
         data: {
-          icon: "chrome://ztransplit/content/icons/wordcards-16.svg",
+          icon: "chrome://wenxianyidu/content/icons/wordcards-16.svg",
         },
         title: getString("wordcards-tab-title"),
         select: true,
@@ -354,14 +354,14 @@ export function openWordCardsTab(win: any): void {
       container = added?.container ?? null;
     } catch (e) {
       safeDebug(
-        "[Z-Transplit] wordCardsTab: add threw mid-flight (recovering): " + e,
+        "[文献译读] wordCardsTab: add threw mid-flight (recovering): " + e,
       );
     }
     if (!container) {
       container = win?.document?.getElementById(WORDCARDS_TAB_ID) ?? null;
     }
     if (!container) {
-      safeDebug("[Z-Transplit] wordCardsTab: no tab container was created");
+      safeDebug("[文献译读] wordCardsTab: no tab container was created");
       return;
     }
     try {
@@ -369,11 +369,11 @@ export function openWordCardsTab(win: any): void {
         Zotero_Tabs.select(WORDCARDS_TAB_ID);
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] wordCardsTab: select failed: " + e);
+      safeDebug("[文献译读] wordCardsTab: select failed: " + e);
     }
     void mountTab(win, WORDCARDS_TAB_ID, container);
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardsTab: open failed: " + e);
+    safeDebug("[文献译读] wordCardsTab: open failed: " + e);
   }
 }
 
@@ -384,7 +384,7 @@ export function closeWordCardsTab(): void {
       win?.Zotero_Tabs?.close?.(WORDCARDS_TAB_ID);
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardsTab: close failed: " + e);
+    safeDebug("[文献译读] wordCardsTab: close failed: " + e);
   }
   destroyTab();
 }
@@ -402,7 +402,7 @@ function destroyTab(): void {
     state.root.remove();
     state.styleEl.remove();
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardsTab: DOM cleanup failed: " + e);
+    safeDebug("[文献译读] wordCardsTab: DOM cleanup failed: " + e);
   }
 }
 
@@ -423,12 +423,12 @@ async function mountTab(
       host = doc.getElementById(tabID);
     }
     if (!host) {
-      safeDebug("[Z-Transplit] wordCardsTab: tab container never appeared");
+      safeDebug("[文献译读] wordCardsTab: tab container never appeared");
       return;
     }
     buildTab(win, doc, host);
   } catch (e) {
-    safeDebug("[Z-Transplit] wordCardsTab: mount failed: " + e);
+    safeDebug("[文献译读] wordCardsTab: mount failed: " + e);
   }
 }
 

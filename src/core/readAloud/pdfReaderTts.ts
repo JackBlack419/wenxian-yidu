@@ -69,14 +69,14 @@ async function extractPageText(reader: any, pageNumber: number): Promise<PageTex
     const app = viewerApp(reader);
     const pdfViewer = app?.pdfViewer;
     if (!pdfViewer) {
-      safeDebug("[Z-Transplit] pdfReaderTts: no pdfViewer");
+      safeDebug("[文献译读] pdfReaderTts: no pdfViewer");
       return null;
     }
     // pdf.js: getPage lives on the PDFDocumentProxy, not the viewer
     // (verified on 7.0.15: pdfViewer.getPage is not a function).
     const pdfDocument = pdfViewer.pdfDocument || app.pdfDocument;
     if (!pdfDocument?.getPage) {
-      safeDebug("[Z-Transplit] pdfReaderTts: no pdfDocument.getPage");
+      safeDebug("[文献译读] pdfReaderTts: no pdfDocument.getPage");
       return null;
     }
     const page = await pdfDocument.getPage(pageNumber);
@@ -128,27 +128,27 @@ async function extractPageText(reader: any, pageNumber: number): Promise<PageTex
       cursor = Math.max(cursor, start);
     }
     safeDebug(
-      `[Z-Transplit] pdfReaderTts: page ${pageNumber} text=${normalizedPage.length} chars,` +
+      `[文献译读] pdfReaderTts: page ${pageNumber} text=${normalizedPage.length} chars,` +
         ` ${spans.length} spans (dom=${divs.length}, task=${taskDivs.length},` +
         ` layer=${layerEl ? (layerEl.children?.length ?? -1) : "none"})`,
     );
     return { pageNumber, text: normalizedPage, spans };
   } catch (e) {
-    safeDebug("[Z-Transplit] pdfReaderTts extractPageText: " + e);
+    safeDebug("[文献译读] pdfReaderTts extractPageText: " + e);
     return null;
   }
 }
 
 /** Active highlight cleanup. */
 let activeHighlights: any[] = [];
-const HIGHLIGHT_STYLE_ID = "ztransplit-readaloud-style";
+const HIGHLIGHT_STYLE_ID = "wenxianyidu-readaloud-style";
 
 function ensureHighlightStyle(doc: Document): void {
   if (doc.getElementById(HIGHLIGHT_STYLE_ID)) return;
   const style = doc.createElement("style");
   style.id = HIGHLIGHT_STYLE_ID;
   style.textContent = `
-.ztransplit-readaloud-hl {
+.wenxianyidu-readaloud-hl {
   background: rgba(245, 158, 11, 0.34) !important;
   color: inherit !important;
   border-radius: 2px;
@@ -160,7 +160,7 @@ function ensureHighlightStyle(doc: Document): void {
 function clearHighlights(): void {
   for (const el of activeHighlights) {
     try {
-      el.classList.remove("ztransplit-readaloud-hl");
+      el.classList.remove("wenxianyidu-readaloud-hl");
     } catch {
       /* detached */
     }
@@ -175,7 +175,7 @@ function highlightSpans(spans: { el: any }[]): void {
   ensureHighlightStyle(doc);
   for (const span of spans) {
     try {
-      span.el.classList.add("ztransplit-readaloud-hl");
+      span.el.classList.add("wenxianyidu-readaloud-hl");
       activeHighlights.push(span.el);
     } catch {
       /* detached */
@@ -193,7 +193,7 @@ export async function buildPdfSegments(
 ): Promise<{ segments: ReadAloudSegment[]; total: number }> {
   const app = viewerApp(reader);
   const pagesCount = Number(app?.pdfViewer?.pagesCount) || 0;
-  safeDebug("[Z-Transplit] pdfReaderTts: buildPdfSegments from page, total=" + pagesCount);
+  safeDebug("[文献译读] pdfReaderTts: buildPdfSegments from page, total=" + pagesCount);
   if (!pagesCount) return { segments: [], total: 0 };
 
   const segments: ReadAloudSegment[] = [];
@@ -239,6 +239,6 @@ export function followSegment(reader: any, segment: ReadAloudSegment): void {
       pdfViewer.currentPageNumber = pageNumber;
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] pdfReaderTts follow: " + e);
+    safeDebug("[文献译读] pdfReaderTts follow: " + e);
   }
 }

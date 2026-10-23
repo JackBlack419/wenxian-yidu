@@ -218,19 +218,15 @@ describe("checkTranslationReadiness", () => {
     ).toBe(false);
   });
 
-  it("unknown engine id is treated like custom (the dispatcher's fallback)", () => {
+  it("unknown engine id requires a new selection and never selects a paid fallback", () => {
     expect(
       checkTranslationReadiness(reader({ "translate.engineType": "wat" })),
     ).toEqual({
       ready: false,
       missing: [
         {
-          prefKey: "translate.custom.apiUrl",
-          reasonKey: "readiness-reason-engine-url",
-        },
-        {
-          prefKey: "translate.custom.apiKey",
-          reasonKey: "readiness-reason-engine-key",
+          prefKey: "translate.engineType",
+          reasonKey: "readiness-reason-unknown",
         },
       ],
     });

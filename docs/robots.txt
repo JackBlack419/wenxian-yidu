@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://jackblack419.github.io/wenxian-yidu/sitemap.xml

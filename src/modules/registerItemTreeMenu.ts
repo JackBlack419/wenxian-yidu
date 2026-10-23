@@ -1,3 +1,5 @@
+import { updateTranslationStatus } from "../core/pdf/splitview/translationStatus";
+import { ensureEngineAvailable } from "../core/translation/engineSelection";
 /**
  * registerItemTreeMenu — library item context-menu entries for the PDF
  * translation flows.
@@ -17,8 +19,8 @@
  *     popup directly (zotero-pdf2zh's approach).
  * So this module uses ONE code path — DOM injection into `zotero-itemmenu`
  * with a popupshowing visibility gate — which works identically on both. When
- * MenuManager becomes detectable we could migrate, but the injected path is
- * not version-fragile: the popup id exists in both 7 and 10.
+ * MenuManager becomes detectable we could migrate. Direct injection must
+ * preserve native child positions because the host updates them by index.
  *
  * Loaded dynamically by src/hooks.ts (onMainWindowLoad / onStartup), tracked
  * and revoked by onShutdown.
@@ -30,6 +32,7 @@ import { getString } from "../utils/locale";
 import { safeDebug } from "../utils/logger";
 import { toErrorMessage } from "../utils/error";
 import { alertDialog } from "../utils/dialog";
+import { createOwnedProgressWindow, createProgressRow, scheduleProgressClose } from "../utils/progressRow";
 import {
   translateAndSplitWithOpenDataLoader,
 } from "../core/pdf/translation/opendataloaderSplitAdapter";
@@ -48,8 +51,8 @@ import {
   startBilingualSessionByItemID,
 } from "../core/pdf/sdt/bilingualLauncher";
 
-const MENU_ID = "ztransplit-itemmenu";
-const SEP_ID = "ztransplit-itemmenu-sep";
+const MENU_ID = "wenxianyidu-itemmenu";
+const SEP_ID = "wenxianyidu-itemmenu-sep";
 
 interface TrackedWindow {
   win: any;
@@ -90,7 +93,7 @@ function resolveAllSourcePdfAttachments(items: any[]): any[] {
       }
     } catch (e) {
       safeDebug(
-        `[Z-Transplit] resolveAllSourcePdfAttachments scan error: ${e}`,
+        `[文献译读] resolveAllSourcePdfAttachments scan error: ${e}`,
       );
       /* not an item we understand — keep scanning */
     }
@@ -146,7 +149,7 @@ function openAttachmentOrAlert(win: any, attachmentId: number): boolean {
       return true;
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] itemTreeMenu viewAttachment: " + e);
+    safeDebug("[文献译读] itemTreeMenu viewAttachment: " + e);
   }
   alertDialog(getString("app-title"), getString("itemtree-open-failed"), win);
   return false;
@@ -173,7 +176,7 @@ async function runPipelines(
     } catch (e) {
       // runPipeline handles its own errors; this guard just guarantees one
       // failure can't stop the remaining items.
-      safeDebug(`[Z-Transplit] itemTreeMenu batch item failed: ${e}`);
+      safeDebug(`[文献译读] itemTreeMenu batch item failed: ${e}`);
     }
   }
 }
@@ -188,44 +191,15 @@ async function runPipeline(
   outcome: "attachment" | "split",
   label?: string,
 ): Promise<void> {
+  if (!await ensureEngineAvailable()) return;
   const Zotero = (globalThis as any).Zotero;
-  const progress = new Zotero.ProgressWindow({ window: win });
-  progress.changeHeadline(
-    (label ? `${label} ` : "") +
-      getString(
-        outcome === "attachment"
-          ? "itemtree-progress-attachment"
-          : "odl-progress-translating",
-      ),
-  );
-  progress.addDescription(sourceItem.getField?.("title") || "");
-  progress.show();
+  const progress = null;
+  const row = { setText: (message: string) => updateTranslationStatus({ sourceItemID: sourceItem.id, message }) };
+  updateTranslationStatus({ sourceItemID: sourceItem.id, phase: "running", done: 0, total: 0, failed: 0,
+    title: String(sourceItem.getField?.("title") || ""), message: getString(outcome === "attachment" ? "itemtree-progress-attachment" : "odl-progress-translating") });
 
   try {
-    // Split flow: reuse an existing translation exactly like the reader
-    // context-menu entry does, instead of re-translating the document.
-    if (outcome === "split") {
-      const existing = findExistingTranslation(sourceItem);
-      if (existing) {
-        progress.addDescription(getString("itemtree-split-reuse"));
-        const { openSplitView } = await import("../core/pdf/splitview/splitViewFactory");
-        await openSplitView(win, sourceItem, existing);
-        progress.startCloseTimer?.(8000);
-        return;
-      }
-    }
-    // Attachment flow: open the existing translation instead of re-running;
-    // when it can't be resolved (e.g. the dedup hit was a non-PDF) fall
-    // through to a fresh translation rather than returning silently.
-    if (outcome === "attachment" && hasExistingTranslation(sourceItem)) {
-      const existing = findExistingTranslation(sourceItem);
-      if (existing && openAttachmentOrAlert(win, existing.id)) {
-        progress.addDescription(getString("itemtree-dedup-open"));
-        progress.startCloseTimer?.(4000);
-        return;
-      }
-    }
-
+    // Deduplication and resumption are shared by the document pipeline.
     await translateAndSplitWithOpenDataLoader({
       sourceItem,
       // The split outcome opens the side-by-side reader through the same
@@ -238,22 +212,28 @@ async function runPipeline(
       }) as any,
       onProgress: (msg: string) => {
         try {
-          progress.addDescription(msg);
-          progress.show();
+          row.setText(msg);
+          // The window panel carries progress.
         } catch {
           /* progress window closed */
         }
       },
+      onCheckpoint: job => updateTranslationStatus({ sourceItemID: sourceItem.id, phase: job.status === "running" ? "running" : job.status === "partial" ? "partial" : job.status === "complete" ? "complete" : job.status === "cancelled" ? "cancelled" : "failed", done: job.done, total: job.total, failed: job.failed }),
       outcome,
       openAttachment: (attachmentId: number) => {
         openAttachmentOrAlert(win, attachmentId);
       },
     });
-    progress.startCloseTimer?.(8000);
+    scheduleProgressClose(progress, 6000);
   } catch (e: any) {
+    if (e?.name === "WenxianYiduCancelled") {
+      row.setText("已取消翻译；已完成段落已保留，可在“翻译任务”中继续。");
+      scheduleProgressClose(progress, 5000);
+      return;
+    }
     // 10 s, matching the reader entry point — 2 s was too short to read the
     // "✗" line (the modal dialog below is the real carrier, this is backup).
-    progress.startCloseTimer?.(10000);
+    scheduleProgressClose(progress, 10000);
     const raw = toErrorMessage(e);
     // Structured reason first (isJavaMissingCause) — the preflight error's
     // message is a pinned English hint with the localized detail dropped, and
@@ -263,9 +243,9 @@ async function runPipeline(
       return;
     }
     const friendly = friendlyOdlError(raw);
-    safeDebug(`[Z-Transplit] itemTreeMenu pipeline failed: ${raw}`);
+    safeDebug(`[文献译读] itemTreeMenu pipeline failed: ${raw}`);
     try {
-      progress.addDescription("✗ " + friendly);
+      row.setText("✗ " + friendly);
     } catch {
       /* progress window already closed */
     }
@@ -315,10 +295,8 @@ function injectIntoWindow(win: any): boolean {
         // The leading separator must follow the menu — otherwise an orphan
         // divider stays visible whenever the submenu hides.
         separator.setAttribute("hidden", show ? "false" : "true");
-        // Re-assert the label on EVERY showing: on Zotero 10 the item menu's
-        // labels are (re)written around popupshowing, and our injected menu
-        // was observed displaying a native label ("在文献库中显示", found in
-        // the live-install test on a real library) — re-set wins the race.
+        // Refresh our label only. Native menu positions must remain unchanged:
+        // Zotero's buildItemContextMenu updates labels by childNodes[index].
         menu.setAttribute("label", getString("itemtree-menu"));
 
         // Checkmark state, recomputed on every showing so it can never go
@@ -343,12 +321,12 @@ function injectIntoWindow(win: any): boolean {
           liveMode === "transOnly" ? "true" : "false",
         );
       } catch (e) {
-        safeDebug("[Z-Transplit] itemTreeMenu onShowing: " + e);
+        safeDebug("[文献译读] itemTreeMenu onShowing: " + e);
       }
     }) as EventListener;
 
     const translateAttachment = mkItem(
-      "ztransplit-itemmenu-attachment",
+      "wenxianyidu-itemmenu-attachment",
       "itemtree-translate-attachment",
       () => {
         const zp = win.ZoteroPane || win.wrappedJSObject?.ZoteroPane;
@@ -357,7 +335,7 @@ function injectIntoWindow(win: any): boolean {
       },
     );
     const translateSplit = mkItem(
-      "ztransplit-itemmenu-split",
+      "wenxianyidu-itemmenu-split",
       "itemtree-translate-split",
       () => {
         const zp = win.ZoteroPane || win.wrappedJSObject?.ZoteroPane;
@@ -373,11 +351,13 @@ function injectIntoWindow(win: any): boolean {
     // progress while preparing, done/failed lines, and a disclosure message
     // when the document-structure session can't be established at all.
     const runBilingual = async (mode: "interleave" | "transOnly"): Promise<void> => {
+      if (!await ensureEngineAvailable()) return;
       const Zotero = (globalThis as any).Zotero;
       const zp = win.ZoteroPane || win.wrappedJSObject?.ZoteroPane;
-      const progress = new Zotero.ProgressWindow({ window: win });
+      const progress = createOwnedProgressWindow({ window: win });
       progress.changeHeadline(getString("app-title"));
-      progress.addDescription(getString("itemtree-launch-progress"));
+      // 段落队列每译完一段回调一次：用一行原地更新进度，不堆历史记录。
+      const row = createProgressRow(progress, getString("itemtree-launch-progress"));
       progress.show();
       try {
         const source = resolveSourcePdfAttachment(
@@ -393,29 +373,36 @@ function injectIntoWindow(win: any): boolean {
           mode,
           onProgress: (stats) => {
             try {
-              progress.addDescription(
+              row.setText(
                 getString("bilingual-progress", {
                   done: stats.done,
                   total: stats.total,
                 }),
               );
-              progress.show();
+              // The window panel carries progress.
             } catch {
               /* progress window closed */
             }
           },
         });
         if (!handle) {
-          progress.addDescription(getString("bilingual-sdt-missing"));
+          row.setText(getString("bilingual-sdt-missing"));
+          scheduleProgressClose(progress, 8000);
+          return;
+        }
+        if (handle.stats().total === 0) {
+          // Scanned / text-layer-less PDF: an empty session would otherwise
+          // report "done" over a document with nothing in it.
+          row.setText(getString("bilingual-no-text"));
           progress.startCloseTimer?.(8000);
           return;
         }
-        progress.addDescription(getString("itemtree-launch-done"));
-        progress.startCloseTimer?.(3000);
+        row.complete(getString("itemtree-launch-done"));
+        scheduleProgressClose(progress, 3000);
       } catch (e) {
-        safeDebug(`[Z-Transplit] itemTreeMenu bilingual (${mode}) failed: ${e}`);
+        safeDebug(`[文献译读] itemTreeMenu bilingual (${mode}) failed: ${e}`);
         try {
-          progress.addDescription("✗ " + toErrorMessage(e));
+          row.setText("✗ " + toErrorMessage(e));
           progress.startCloseTimer?.(8000);
         } catch {
           /* progress window already closed */
@@ -423,7 +410,7 @@ function injectIntoWindow(win: any): boolean {
       }
     };
     const interleaveItem = mkItem(
-      "ztransplit-itemmenu-interleave",
+      "wenxianyidu-itemmenu-interleave",
       "itemtree-interleave",
       async () => {
         const source = resolveSourcePdfAttachment(
@@ -436,7 +423,7 @@ function injectIntoWindow(win: any): boolean {
       },
     );
     const transOnlyItem = mkItem(
-      "ztransplit-itemmenu-trans-only",
+      "wenxianyidu-itemmenu-trans-only",
       "itemtree-trans-only",
       async () => {
         const source = resolveSourcePdfAttachment(
@@ -457,16 +444,19 @@ function injectIntoWindow(win: any): boolean {
     const separator = doc.createXULElement("menuseparator");
     separator.id = SEP_ID;
 
-    const firstChild = popup.firstElementChild;
-    popup.insertBefore(separator, firstChild);
-    popup.insertBefore(menu, separator);
+    // Zotero indexes the original menu children when assigning labels and
+    // visibility. Prepending two nodes made its "Move to Trash" label land on
+    // the native Duplicate command: deleting appeared to create more items.
+    // Keep all native indices intact and append our own group at the end.
+    popup.appendChild(separator);
+    popup.appendChild(menu);
 
     popup.addEventListener("popupshowing", onShowing);
 
     tracked.push({ win, popup, menu, separator, onShowing });
     return true;
   } catch (e) {
-    safeDebug("[Z-Transplit] registerItemTreeMenu inject failed: " + e);
+    safeDebug("[文献译读] registerItemTreeMenu inject failed: " + e);
     return false;
   }
 }
@@ -483,9 +473,9 @@ export function registerItemTreeMenu(): void {
     let any = false;
     for (const win of wins) any = injectIntoWindow(win) || any;
     if (any) registered = true;
-    safeDebug(`[Z-Transplit] itemTreeMenu registered (windows: ${wins.length})`);
+    safeDebug(`[文献译读] itemTreeMenu registered (windows: ${wins.length})`);
   } catch (e) {
-    safeDebug("[Z-Transplit] registerItemTreeMenu failed: " + e);
+    safeDebug("[文献译读] registerItemTreeMenu failed: " + e);
   }
 }
 
@@ -509,7 +499,7 @@ export function unregisterItemTreeMenuForWindow(win: any): void {
     t.menu.remove();
     t.separator.remove();
   } catch (e) {
-    safeDebug("[Z-Transplit] unregisterItemTreeMenuForWindow: " + e);
+    safeDebug("[文献译读] unregisterItemTreeMenuForWindow: " + e);
   }
 }
 

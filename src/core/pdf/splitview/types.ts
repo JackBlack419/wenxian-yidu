@@ -40,6 +40,8 @@ export interface SplitTabState {
   // ── Scroll sync state ──
   /** True while dragging the resizer / zooming — pauses sync. */
   syncPaused: boolean;
+  /** Persistent user choice, distinct from the temporary resize/zoom pause. */
+  syncEnabled?: boolean;
 
   // Fraction-based scroll mirroring (two-tier):
   //   FAST PATH — a 'scroll' listener injected INTO pdf.js's content realm

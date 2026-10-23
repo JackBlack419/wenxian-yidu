@@ -162,7 +162,7 @@ export function requestSync(state: SplitTabState): void {
  * Exported for unit tests (mock adapters + fake win; see split-sync.spec.ts).
  */
 export function doSyncCheck(state: SplitTabState): void {
-  if (state.isCleaningUp || state.syncPaused || state.mirrorGuard) return;
+  if (state.isCleaningUp || state.syncEnabled === false || state.syncPaused || state.mirrorGuard) return;
   const left = state.leftAdapter;
   const right = state.rightAdapter;
   if (!left || !right) return;

@@ -37,6 +37,7 @@ vi.mock("../../../../../src/core/translation/translationCache", () => ({
 
 import { buildInterleave } from "../../../../../src/core/pdf/sdt/interleaveView";
 import { getString } from "../../../../../src/utils/locale";
+import { collectBlocks } from "../../../../../src/core/pdf/sdt/sdtBridge";
 
 type AnySession = Parameters<typeof buildInterleave>[0];
 
@@ -86,7 +87,7 @@ async function build(session: AnySession) {
 
 function biOf(container: HTMLElement, ref: string): HTMLElement {
   const el = container.querySelector(
-    `div.ztransplit-bi[data-ref-path="${ref}"]`,
+    `div.wenxianyidu-bi[data-ref-path="${ref}"]`,
   );
   if (!el) throw new Error("no injected block " + ref);
   return el as HTMLElement;
@@ -108,10 +109,31 @@ describe("interleaveView：仅译文点击查看原文", () => {
     fx = undefined;
   });
 
+  it("keeps list translations visible in translation-only mode and restores their placement", async () => {
+    fx!.container.innerHTML = '<ul data-ref-path="0"><li data-ref-path="0.0">First item.</li><li data-ref-path="0.1">Second item.</li></ul>';
+    const list = fx!.container.querySelector("ul")!;
+    const originals = [...list.querySelectorAll("li")];
+    fx!.session.blocks = collectBlocks(fx!.container);
+    const handle = await build(fx!.session);
+    const translations = fx!.session.blocks.map(block => biOf(fx!.container, block.refPath));
+    expect(translations[0].previousElementSibling).toBe(originals[0]);
+    handle.setMode("transOnly");
+    expect([...fx!.container.children].filter(node => !node.classList.contains("wenxianyidu-bi-controls"))).toEqual([...translations, list]);
+    click(translations[1]);
+    expect(list.hasAttribute("data-peek")).toBe(true);
+    handle.setMode("interleave");
+    expect(list.hasAttribute("data-peek")).toBe(false);
+    expect(translations[0].previousElementSibling).toBe(originals[0]);
+    expect(translations[1].previousElementSibling).toBe(originals[1]);
+    await handle.dispose();
+    expect([...list.children]).toEqual(originals);
+    expect(list.textContent).toBe("First item.Second item.");
+  });
+
   it("上下对照模式点击译文块无任何效果", async () => {
     const { container, originals } = fx!;
     await build(fx!.session);
-    expect(container.classList.contains("ztransplit-bi-mode-interleave")).toBe(
+    expect(container.classList.contains("wenxianyidu-bi-mode-interleave")).toBe(
       true,
     );
     click(biOf(container, "a"));
@@ -197,7 +219,7 @@ describe("interleaveView：仅译文点击查看原文", () => {
     await handle.dispose();
     // 临时显示状态被剥离，注入节点移除，退出钩子被调用
     expect(originals[0].hasAttribute("data-peek")).toBe(false);
-    expect(container.querySelectorAll(".ztransplit-bi").length).toBe(0);
+    expect(container.querySelectorAll(".wenxianyidu-bi").length).toBe(0);
     expect(session.exit).toHaveBeenCalled();
 
     // 解绑后点击不再产生任何 peek 状态

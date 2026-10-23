@@ -1,15 +1,16 @@
 /**
  * translationEngines — Unified translation engine dispatcher.
  *
- * Supports seven engine types:
+ * Supports free trials, official MT APIs and user-configured AI engines:
  *   - "ai"      → OpenAI-compatible chat-completions endpoint driven by a
  *                 user-owned, validated prompt template (translate.ai.*) via
  *                 src/core/translation/promptTemplate.ts. This is the port of
  *                 leadero's "ai" engine: unlike "custom" below it substitutes
  *                 the source/target language into the prompt and refuses to
  *                 translate while the template is invalid.
- *   - "google"  → Google Translate HTTP API (default; free endpoint or Cloud
- *                 Translation; falls back to keyless Bing web on failure)
+ *   - "youdao"  → default keyless trial; "youdao-official" / "niutrans" use
+ *                 user-owned official credentials
+ *   - "google"  → Google Translate free endpoint or Cloud Translation
  *   - "custom"  → OpenAI-compatible chat-completions endpoint with a fixed
  *                 formula-preserving prompt (translate.custom.apiUrl/apiKey/
  *                 model) via src/core/ai/openaiCompat.ts. Also the only engine
@@ -25,10 +26,8 @@
  * All engines return the same signature:
  *   { success: true, translatedText: string } or { success: false, error: string }
  *
- * Formula placeholder preservation ({v0}, {v1}, …) is guaranteed only for the
- * model-backed engines ("ai" and "custom"), because they receive an explicit
- * prompt. Traditional MT APIs have no prompt mechanism, so callers that need
- * formula safety must stay on one of those two.
+ * Formula placeholders and dollar-delimited math are protected locally for
+ * classic MT. Model-backed outputs are checked before they enter the cache.
  *
  * Ported from leadero's src/core/translation/translationEngines.ts: leadero's
  * ModelRouter/AIProviderRegistry coupling is replaced by the local
@@ -44,9 +43,14 @@ import type {
   BatchTranslatorHandle,
   ParagraphTranslator,
 } from "./types";
-import { createOpenAICompatClient } from "../ai/openaiCompat";
+import { createOpenAICompatClient, normalizeChatCompletionsUrl } from "../ai/openaiCompat";
 import { resolveModelBudgets } from "../ai/modelCatalog";
 import { getPrefDynamic } from "../../utils/prefs";
+import { redactTranslationError } from "../../utils/credentials";
+import { cacheAvailable, cacheKey, getCachedTranslations, putCachedTranslation } from "./translationCache";
+import { translateYoudao, translateYoudaoOfficial, translateNiuTrans, combineSignal, assertNotCancelled, userFacingError } from "./providerAdapters";
+import { sharedRequest, providerSlot, splitLongText } from "./requestCoordinator";
+import { protectedTextUnchanged, maskProtectedSentence, translateProtectedSentence } from "./protectedText";
 import { parseJsonFromMarkdown } from "../../utils/json";
 import { toErrorMessage } from "../../utils/error";
 import { getString } from "../../utils/locale";
@@ -72,6 +76,10 @@ import {
 } from "../../utils/rateLimit";
 
 export type TranslationEngineType =
+  | "mtranserver"
+  | "youdao"
+  | "youdao-official"
+  | "niutrans"
   | "ai"
   | "google"
   | "bing"
@@ -85,29 +93,34 @@ export type TranslationEngineType =
  * declared in addon/prefs.js (z-transplit has no src/utils/defaults.ts — prefs.js
  * is the single source of truth for pref defaults).
  */
-const DEFAULT_TRANSLATE_ENGINE_TYPE: TranslationEngineType = "google";
+const DEFAULT_TRANSLATE_ENGINE_TYPE: TranslationEngineType = "bing-web";
 
 export interface GoogleTranslateOptions {
+  signal?: AbortSignal;
   apiKey?: string;
 }
 
 export interface BingTranslateOptions {
+  signal?: AbortSignal;
   apiKey: string;
   region: string;
 }
 
 export interface DeepLTranslateOptions {
+  signal?: AbortSignal;
   apiKey: string;
   useFreeEndpoint?: boolean;
 }
 
 export interface CustomTranslateOptions {
+  signal?: AbortSignal;
   apiUrl: string;
   apiKey?: string;
   model?: string;
 }
 
 export interface AITranslateOptions {
+  signal?: AbortSignal;
   apiUrl: string;
   /** Optional: local gateways (Ollama, LM Studio) usually need no key. */
   apiKey?: string;
@@ -199,7 +212,7 @@ const MAX_BATCH_RETRIES = 3;
  * Retry-After 响应头），供限流退避（utils/rateLimit.ts）识别与计迟。
  */
 function httpStatusError(resp: Response, text: string): Error {
-  const e = new Error(`HTTP ${resp.status}: ${text || resp.statusText}`) as Error & {
+  const e = new Error(`HTTP ${resp.status}: ${redactTranslationError(text || resp.statusText)}`) as Error & {
     status?: number;
     retryAfterSec?: number | null;
   };
@@ -213,6 +226,7 @@ async function httpPost(
   headers: Record<string, string>,
   body: string,
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const resp = await fetch(url, {
     method: "POST",
@@ -221,7 +235,7 @@ async function httpPost(
       ...headers,
     },
     body,
-    signal: timeoutMs ? abortSignalTimeout(timeoutMs) : undefined,
+    signal: combineSignal(signal, timeoutMs || 30000),
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
@@ -235,6 +249,7 @@ async function httpPostForm(
   headers: Record<string, string>,
   body: URLSearchParams,
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const resp = await fetch(url, {
     method: "POST",
@@ -243,7 +258,7 @@ async function httpPostForm(
       ...headers,
     },
     body: body.toString(),
-    signal: timeoutMs ? abortSignalTimeout(timeoutMs) : undefined,
+    signal: combineSignal(signal, timeoutMs || 30000),
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
@@ -252,9 +267,9 @@ async function httpPostForm(
   return resp;
 }
 
-async function httpGet(url: string, timeoutMs?: number): Promise<Response> {
+async function httpGet(url: string, timeoutMs?: number, signal?: AbortSignal): Promise<Response> {
   const resp = await fetch(url, {
-    signal: timeoutMs ? abortSignalTimeout(timeoutMs) : undefined,
+    signal: combineSignal(signal, timeoutMs || 30000),
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
@@ -264,29 +279,51 @@ async function httpGet(url: string, timeoutMs?: number): Promise<Response> {
 }
 
 /**
- * 限流退避包装（429 一次重试；自 leadero 的 requestWithRateLimit 思想移植）。
- *
- * 首次 429 → 按 Retry-After 头等待（超过 120 秒视为「等太久」，直接终态），
- * 无头时按 5 秒 × 2^(n-1) 指数退避；重试仍 429 → 以限流专门文案终态，不再
- * 冒充普通失败。非 429 异常原样上抛，调用方的既有语义不变。
+ * 限流回落：除首次请求外再试 1 次（等待量级 5s，若服务器给了 Retry-After
+ * 则按它）。免注册试用的配额是分钟级的，等更久只会让一次段落翻译卡满几十秒；
+ * 调用方仍会拿到明确的限流文案，而不是「翻译失败」。
  */
-async function withRateLimitRetry<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    if (!isRateLimitError(e)) throw e;
-    const delayMs = rateLimitDelayMs(retryAfterOfError(e), 1);
-    if (delayMs == null) throw e;
-    await new Promise((r) => setTimeout(r, delayMs));
+const RATE_LIMIT_RETRIES = 1;
+
+/**
+ * 限流退避包装（429 / 有道 411；自 leadero 的 requestWithRateLimit 思想移植）。
+ *
+ * 每次等待优先按 Retry-After 头（超过 120 秒视为「等太久」，直接终态），
+ * 无头时按 5 秒 × 2^(n-1) 指数退避；重试耗尽后以限流专门文案终态，不再
+ * 冒充普通失败。非限流异常原样上抛，调用方的既有语义不变。
+ */
+async function waitForRetry(ms: number, signal?: AbortSignal): Promise<void> {
+  assertNotCancelled(signal);
+  const host = (globalThis as any).Zotero?.getMainWindow?.() ?? globalThis;
+  await new Promise<void>((resolve, reject) => {
+    let timer: any;
+    const finish = () => { signal?.removeEventListener("abort", stop); resolve(); };
+    const stop = () => {
+      host.clearTimeout(timer);
+      signal?.removeEventListener("abort", stop);
+      reject(Object.assign(new Error("翻译已取消"), { name: "AbortError" }));
+    };
+    timer = host.setTimeout(finish, ms);
+    signal?.addEventListener("abort", stop, { once: true });
+    if (signal?.aborted) stop();
+  });
+}
+
+async function withRateLimitRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  assertNotCancelled(signal);
+  for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
-    } catch (retryError) {
-      if (isRateLimitError(retryError)) {
-        throw new Error(getString("translation-error-rate-limited"), {
-          cause: retryError,
-        });
+    } catch (e) {
+      if (signal?.aborted || !isRateLimitError(e)) throw e;
+      if (attempt >= RATE_LIMIT_RETRIES) {
+        throw new Error(getString("translation-error-rate-limited"), { cause: e });
       }
-      throw retryError;
+      const delayMs = rateLimitDelayMs(retryAfterOfError(e), attempt + 1);
+      if (delayMs == null) {
+        throw new Error(getString("translation-error-rate-limited"), { cause: e });
+      }
+      await waitForRetry(delayMs, signal);
     }
   }
 }
@@ -326,6 +363,7 @@ async function translateWithGoogle(
         {},
         body,
         KEYLESS_ENDPOINT_TIMEOUT_MS,
+        opts.signal,
       );
       const data = (await resp.json()) as any;
       const translated = data?.data?.translations?.[0]?.translatedText;
@@ -341,7 +379,7 @@ async function translateWithGoogle(
         encodeURIComponent(tgt) +
         `&dt=t&q=` +
         encodeURIComponent(text);
-      const resp = await httpGet(url, KEYLESS_ENDPOINT_TIMEOUT_MS);
+      const resp = await httpGet(url, KEYLESS_ENDPOINT_TIMEOUT_MS, opts.signal);
       const data = (await resp.json()) as any;
       // Response shape: [[["translated","original",...]],null,"srcLang"]
       const sentences = data?.[0] ?? [];
@@ -351,7 +389,7 @@ async function translateWithGoogle(
       return { success: true, translatedText: translated };
     }
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -384,13 +422,15 @@ async function translateWithBing(
         "Ocp-Apim-Subscription-Region": opts.region,
       },
       body,
+      30000,
+      opts.signal,
     );
     const data = (await resp.json()) as any;
     const translated = data?.[0]?.translations?.[0]?.text;
     if (!translated) throw new Error(getString("translation-error-bing-empty"));
     return { success: true, translatedText: translated };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -466,13 +506,23 @@ function detectBingWebSourceLang(text: string): string {
   return "en";
 }
 
-async function fetchBingWebSession(): Promise<BingWebSession> {
+let bingWebSessionRequest: Promise<BingWebSession> | null = null;
+async function fetchBingWebSession(signal?: AbortSignal): Promise<BingWebSession> {
+  if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+  if (bingWebSession && Date.now() < bingWebSession.expiresAt) return bingWebSession;
+  if (!bingWebSessionRequest) bingWebSessionRequest = loadBingWebSession().finally(() => { bingWebSessionRequest = null; });
+  const session = await bingWebSessionRequest;
+  if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+  return session;
+}
+async function loadBingWebSession(): Promise<BingWebSession> {
   if (bingWebSession && Date.now() < bingWebSession.expiresAt) {
     return bingWebSession;
   }
   const resp = await httpGet(
     "https://www.bing.com/translator",
     KEYLESS_ENDPOINT_TIMEOUT_MS,
+    undefined,
   );
   const html = await resp.text();
   const ig = html.match(/IG:"([A-Fa-f0-9]{16,})"/)?.[1] || "";
@@ -505,6 +555,7 @@ async function postBingWebTranslate(
   targetLanguage: string,
   sourceLanguage: string,
   session: BingWebSession,
+  signal?: AbortSignal,
 ): Promise<{
   success: boolean;
   translatedText?: string;
@@ -534,9 +585,10 @@ async function postBingWebTranslate(
         Referer: `${session.origin}/translator`,
       },
       body: body.toString(),
-      signal: abortSignalTimeout(KEYLESS_ENDPOINT_TIMEOUT_MS),
+      signal: combineSignal(signal, KEYLESS_ENDPOINT_TIMEOUT_MS),
     });
     if (!resp.ok) {
+      if (resp.status === 429 || resp.status === 411) throw httpStatusError(resp, "");
       return {
         success: false,
         error: `HTTP ${resp.status}: ${resp.statusText}`,
@@ -564,7 +616,8 @@ async function postBingWebTranslate(
     }
     return { success: true, translatedText: translated };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    if (isRateLimitError(e)) throw e;
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -572,6 +625,7 @@ async function translateWithBingWeb(
   text: string,
   targetLanguage: string,
   sourceLanguage?: string,
+  signal?: AbortSignal,
 ): Promise<{ success: boolean; translatedText?: string; error?: string }> {
   // 源语言二分（与 z-search 的区段判定互补）：调用方显式给了语言（含显式
   // "auto"）→ 走既有映射（auto → auto-detect，由 Bing 服务端判定）；完全没传
@@ -585,7 +639,8 @@ async function translateWithBingWeb(
       text,
       targetLanguage,
       src,
-      await fetchBingWebSession(),
+      await fetchBingWebSession(signal),
+      signal,
     );
     if (!result.success && result.tokenRejected) {
       // Stale/invalid session — refetch the token page once and retry.
@@ -594,7 +649,8 @@ async function translateWithBingWeb(
         text,
         targetLanguage,
         src,
-        await fetchBingWebSession(),
+        await fetchBingWebSession(signal),
+      signal,
       );
     }
     if (!result.success) {
@@ -605,7 +661,8 @@ async function translateWithBingWeb(
     }
     return { success: true, translatedText: result.translatedText };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    if (isRateLimitError(e)) throw e;
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -642,7 +699,10 @@ async function translateWithDeepL(
         `https://${host}/v2/translate`,
         { Authorization: `DeepL-Auth-Key ${opts.apiKey}` },
         params,
+        30000,
+        opts.signal,
       ),
+      opts.signal,
     );
     const data = (await resp.json()) as any;
     const translated = data?.translations?.[0]?.text;
@@ -650,7 +710,7 @@ async function translateWithDeepL(
       throw new Error(getString("translation-error-deepl-empty"));
     return { success: true, translatedText: translated };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -717,12 +777,14 @@ async function translateWithAI(
         ),
         temperature: 0.3,
         timeoutMs: AI_ENDPOINT_TIMEOUT_MS,
+        signal: opts.signal,
       }),
+      opts.signal,
     );
 
     return { success: true, translatedText: result.content };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -768,12 +830,15 @@ async function translateWithCustom(
           Math.min(text.length * 2, SINGLE_OUTPUT_MAX_TOKENS),
         ),
         temperature: 0.3,
+        timeoutMs: AI_ENDPOINT_TIMEOUT_MS,
+        signal: opts.signal,
       }),
+      opts.signal,
     );
 
     return { success: true, translatedText: result.content };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
@@ -803,7 +868,7 @@ async function translateWithZoteroPdfTranslate(
     }
 
     const task = await api.translate(text, {
-      pluginID: "ztransplit@zotero.org",
+      pluginID: "wenxianyidu@wenxianyidu.local",
       langfrom: sourceLanguage,
       langto: targetLanguage,
     });
@@ -817,12 +882,16 @@ async function translateWithZoteroPdfTranslate(
       error: task.result || getString("translation-error-pdf-translate-failed"),
     };
   } catch (e: any) {
-    return { success: false, error: toErrorMessage(e) };
+    return { success: false, error: redactTranslationError(e) };
   }
 }
 
 export interface EngineConfig {
   engineType: TranslationEngineType;
+  youdaoAppKey?: string;
+  youdaoAppSecret?: string;
+  niutransApiKey?: string;
+  niutransApiUrl?: string;
   googleApiKey?: string;
   bingApiKey?: string;
   bingRegion?: string;
@@ -859,6 +928,10 @@ export function getEngineConfig(): EngineConfig {
     engineType:
       (get("translate.engineType") as TranslationEngineType) ||
       DEFAULT_TRANSLATE_ENGINE_TYPE,
+    youdaoAppKey: get("translate.youdaoOfficial.appKey") || undefined,
+    youdaoAppSecret: get("translate.youdaoOfficial.appSecret") || undefined,
+    niutransApiKey: get("translate.niutrans.apiKey") || undefined,
+    niutransApiUrl: get("translate.niutrans.apiUrl") || "https://api.niutrans.com/NiuTransServer/translation",
     googleApiKey: get("translate.google.apiKey") || undefined,
     bingApiKey: get("translate.bing.apiKey") || undefined,
     bingRegion: get("translate.bing.region") || "global",
@@ -885,123 +958,137 @@ export function getEngineConfig(): EngineConfig {
  * Stable fingerprint of the engine configuration for the persistent translation
  * cache (translationCache.ts). Two runs with the same identity are assumed to
  * produce interchangeable translations, so cached paragraphs are reused.
- * Credentials only enter as a short fingerprint (never the full secret).
+ * Credential revisions invalidate caches without storing key fragments.
  *
  * The "ai" engine additionally fingerprints its prompt template: the template
  * *is* the engine's behaviour, so editing it must invalidate cached paragraphs
  * (a cached Google paragraph is interchangeable with another Google paragraph;
  * a cached paragraph from prompt A is not one from prompt B).
  */
+export interface EngineCapabilities {
+  label: string; supportsPrompt: boolean; supportsStreaming: boolean;
+  maxChars: number; concurrency: number; requiresProxy: boolean; trial: boolean;
+}
+export function getEngineCapabilities(engine: string = getEngineConfig().engineType): EngineCapabilities {
+  const names: Record<string,string> = { youdao: "有道免注册试用（短文本）", "bing-web": "必应免注册试用", "youdao-official": "有道智云", niutrans: "小牛翻译", ai: "自己的 AI API", custom: "兼容 AI 接口", google: "Google 翻译", bing: "Azure 翻译", deepl: "DeepL", "zotero-pdf-translate": "Translate for Zotero" };
+  const model = engine === "ai" || engine === "custom";
+  // 并发上限（同时进行的翻译请求数）。免注册必应网页端点实测可承受 5 路并发
+  // （21 段压测 21/21 成功：1 路约 1.5–3 s/段，3 路约 0.7 s/段，5 路约 0.54 s/段），
+  // 取 4 路兼顾速度与被临时限流的风险；有道试用约 6 次即触发 411，只能串行。
+  const concurrency = engine === "bing-web" ? 4 : model ? 2 : 1;
+  return { label:names[engine] || engine, supportsPrompt:model, supportsStreaming:false,
+    // The public Youdao demo returns 103 above 1000 characters (live verified).
+    maxChars:model ? 12000 : engine === "youdao" ? 1000 : 4000,
+    concurrency, requiresProxy:engine === "google", trial:engine === "youdao" || engine === "bing-web" };
+}
+/** This identity contains output-affecting configuration, never key fragments. */
 export function engineCacheIdentity(): string {
   const cfg = getEngineConfig();
-  const parts: string[] = [cfg.engineType];
-  if (cfg.engineType === "ai") {
-    parts.push(
-      cfg.aiModel || "",
-      cfg.aiApiUrl || "",
-      (cfg.aiApiKey || "").slice(-6),
-      promptFingerprint(resolvePromptTemplate(cfg.aiPrompt)),
-    );
-  } else if (cfg.engineType === "custom") {
-    parts.push(cfg.customModel || "", cfg.customApiUrl || "", (cfg.customApiKey || "").slice(-6));
-  } else if (cfg.engineType === "google") {
-    parts.push(cfg.googleApiKey ? "keyed" : "keyless");
-  } else if (cfg.engineType === "deepl") {
-    parts.push(cfg.deeplUseFree ? "free" : "pro");
-  }
+  const parts: string[] = [cfg.engineType, "wy3-sentence-math", String(getPrefDynamic("translate.credentialsRevision") || "")];
+  if (cfg.engineType === "mtranserver") parts.push("mtran-5.0.1", "en-zh-Hans-3.0");
+  if(cfg.engineType === "ai") parts.push(cfg.aiModel || "", cfg.aiApiUrl ? normalizeChatCompletionsUrl(cfg.aiApiUrl) : "", promptFingerprint(resolvePromptTemplate(cfg.aiPrompt)));
+  if(cfg.engineType === "custom") parts.push(cfg.customModel || "", cfg.customApiUrl ? normalizeChatCompletionsUrl(cfg.customApiUrl) : "");
+  if(cfg.engineType === "google") parts.push(cfg.googleApiKey ? "keyed" : "keyless");
+  if(cfg.engineType === "deepl") parts.push(cfg.deeplUseFree ? "free" : "pro");
+  if(cfg.engineType === "bing") parts.push(cfg.bingRegion || "global");
+  if(cfg.engineType === "niutrans") parts.push(cfg.niutransApiUrl || "");
   return parts.join("|");
 }
-
-/** In-memory LRU cache for translation results.
- *  Eliminates repeat API calls for the same text + language + engine combo.
- *  Session-scoped (not persisted) — translations are cheap to redo on restart. */
 const TRANSLATION_CACHE = new Map<string, string>();
 const TRANSLATION_CACHE_MAX = 500;
+export function clearTranslationCache(): void { TRANSLATION_CACHE.clear(); }
 
-/** Clear the translation cache (e.g. when engine settings change). */
-export function clearTranslationCache(): void {
-  TRANSLATION_CACHE.clear();
+function validateProtectedText(source: string, translated: string): void {
+  if(!protectedTextUnchanged(source, translated)) throw new Error("译文中的公式标记发生变化，请重试或调整提示词。");
+}
+/** One cache, one bounded request queue, and shared cancellation for every view. */
+export function createTranslator(targetLanguage: string, sourceLanguage?: string, signal?: AbortSignal): ParagraphTranslator {
+  const cfg = getEngineConfig();
+  const identity = engineCacheIdentity();
+  const caps = getEngineCapabilities(cfg.engineType);
+  return async (text: string, tgt: string, src?: string) => {
+    assertNotCancelled(signal);
+    const target = tgt || targetLanguage;
+    const source = src || sourceLanguage || "auto";
+    const key = identity + "\u0000" + source + "\u0000" + target + "\u0000" + text;
+    const hit = getPrefDynamic("translate.cache.enabled") !== false ? TRANSLATION_CACHE.get(key) : undefined;
+    if(hit !== undefined) return hit;
+    try {
+      return await sharedRequest(key, async (sharedSignal) => {
+        if(cacheAvailable()) {
+          const diskKey = await cacheKey(identity,source,target,text);
+          const disk = await getCachedTranslations([diskKey]);
+          if(diskKey && disk.has(diskKey) && protectedTextUnchanged(text, disk.get(diskKey)!)) return disk.get(diskKey)!;
+          // Legacy tasks without a segment manifest still recover ordinary
+          // paragraphs from 0.1.1. Fragmented MT math results are invalidated.
+          if (caps.supportsPrompt || !maskProtectedSentence(text).parts.some(part => part.protected)) {
+            const legacyKey = await cacheKey(identity.replace("wy3-sentence-math", "wy2-math"), source, target, text);
+            const legacy = await getCachedTranslations([legacyKey]);
+            if (legacyKey && legacy.has(legacyKey) && protectedTextUnchanged(text, legacy.get(legacyKey)!)) return legacy.get(legacyKey)!;
+          }
+        }
+        assertNotCancelled(sharedSignal);
+        const inner = createTranslatorUncached(target,src || sourceLanguage,sharedSignal,cfg);
+        const runText = async (value:string):Promise<string> => {
+          if(!value.trim()) return value;
+          const chunks = splitLongText(value,caps.maxChars);
+          const translated:string[]=[];
+          for(const chunk of chunks) {
+            assertNotCancelled(sharedSignal);
+            const lead = chunk.match(/^\s*/)?.[0] || "";
+            const tail = chunk.match(/\s*$/)?.[0] || "";
+            const result = await providerSlot(cfg.engineType,caps.concurrency,sharedSignal,()=>inner(chunk.trim(),target,source));
+            if(!result?.trim()) throw new Error("翻译服务未返回内容，请重试。");
+            translated.push(lead + result.trim() + tail);
+          }
+          return translated.join("");
+        };
+        let result:string;
+        // Classic MT services have no prompt mechanism. Preserve math locally.
+        if(!caps.supportsPrompt) {
+          result = await translateProtectedSentence(text, runText);
+        } else result=await runText(text);
+        assertNotCancelled(sharedSignal);
+        validateProtectedText(text,result);
+        if(TRANSLATION_CACHE.size >= TRANSLATION_CACHE_MAX) TRANSLATION_CACHE.delete(TRANSLATION_CACHE.keys().next().value!);
+        if (getPrefDynamic("translate.cache.enabled") !== false) TRANSLATION_CACHE.set(key,result);
+        if(cacheAvailable()) await putCachedTranslation(identity,source,target,text,result);
+        return result;
+      },signal);
+    } catch(error) {
+      if(signal?.aborted) throw Object.assign(new Error("翻译已取消"),{name:"AbortError"});
+      throw Object.assign(new Error(userFacingError(error,signal), { cause: error }), { status: (error as any)?.status, retryAfterSec: retryAfterOfError(error) ?? retryAfterOfError((error as any)?.cause) });
+    }
+  };
 }
 
-/**
- * Create a ParagraphTranslator based on the current prefs.
- *
- * The returned translator is wrapped with an LRU cache so that repeated
- * translations of the same text (e.g. retry, language toggle) return instantly
- * without an additional API call.
- */
-export function createTranslator(
-  targetLanguage: string,
-  sourceLanguage?: string,
-): ParagraphTranslator {
-  const cfg = getEngineConfig();
-  const inner = createTranslatorUncached(targetLanguage, sourceLanguage);
-
-  return async (text: string, tgt: string, src?: string) => {
-    // Only cache texts under 5000 chars to avoid memory bloat from long PDFs.
-    if (text.length > 5000) return inner(text, tgt, src);
-
-    // L-23: fold the model + API-key fingerprint into the cache key —
-    // switching key/model within the same engine type must not serve the
-    // previous configuration's cached translations.
-    const credKey =
-      cfg.engineType === "google"
-        ? cfg.googleApiKey
-        : cfg.engineType === "bing"
-          ? cfg.bingApiKey
-          : cfg.engineType === "deepl"
-            ? cfg.deeplApiKey
-            : cfg.engineType === "ai"
-              ? cfg.aiApiKey
-              : cfg.engineType === "custom"
-                ? cfg.customApiKey
-                : "";
-    // The endpoint is part of a model-backed engine's configuration identity —
-    // the same key/model against a different apiUrl serves a different service.
-    const apiUrlKey =
-      cfg.engineType === "custom"
-        ? cfg.customApiUrl || ""
-        : cfg.engineType === "ai"
-          ? cfg.aiApiUrl || ""
-          : "";
-    // …and so is the prompt: same endpoint, different template, different
-    // translations. Resolving first keeps the key stable for the default
-    // template (empty pref), so switching from edited to default re-hits it.
-    const promptKey =
-      cfg.engineType === "ai"
-        ? promptFingerprint(resolvePromptTemplate(cfg.aiPrompt))
-        : "";
-    const modelKey =
-      cfg.engineType === "ai" ? cfg.aiModel || "" : cfg.customModel || "";
-    const key = `${cfg.engineType}:${modelKey}:${(credKey || "").slice(-6)}:${apiUrlKey}:${promptKey}:${tgt || targetLanguage}:${src || sourceLanguage || "auto"}:${text}`;
-    const cached = TRANSLATION_CACHE.get(key);
-    if (cached !== undefined) {
-      // LRU refresh: delete + re-insert moves entry to end (most recently used).
-      TRANSLATION_CACHE.delete(key);
-      TRANSLATION_CACHE.set(key, cached);
-      return cached;
-    }
-
-    const result = await inner(text, tgt, src);
-    if (result) {
-      // Evict oldest entry (first in Map iteration order) if at capacity.
-      if (TRANSLATION_CACHE.size >= TRANSLATION_CACHE_MAX) {
-        const oldest = TRANSLATION_CACHE.keys().next().value;
-        if (oldest !== undefined) TRANSLATION_CACHE.delete(oldest);
-      }
-      TRANSLATION_CACHE.set(key, result);
-    }
-    return result;
-  };
+/** Always performs a network call: an old cached translation cannot verify a key. */
+export async function testEngineConnection(): Promise<{ success: boolean; text?: string; error?: string }> {
+  try {
+    const translator = createTranslatorUncached("zh-CN", "en");
+    const text = await translator("This study evaluates the accuracy of machine translation.", "zh-CN", "en");
+    if (!text?.trim()) throw new Error("服务未返回译文。");
+    return { success: true, text };
+  } catch (error) { return { success: false, error: userFacingError(error) }; }
 }
 
 function createTranslatorUncached(
   targetLanguage: string,
   sourceLanguage?: string,
+  signal?: AbortSignal,
+  config?: EngineConfig,
 ): ParagraphTranslator {
-  const cfg = getEngineConfig();
+  const cfg = config || getEngineConfig();
 
   switch (cfg.engineType) {
+    case "mtranserver":
+      return async (text: string) => (await import("./offlineManager")).offlineTranslateBatch([text], targetLanguage, sourceLanguage, signal).then(items => items[0]);
+    // The keyless/官方 MT adapters below have no client-level backoff of their
+    // own, so each call is wrapped in the shared rate-limit retry (429 and
+    // 有道试用 411). "ai"/"custom" already wrap themselves — see translateWithAI.
+    case "youdao": return (text) => withRateLimitRetry(() => translateYoudao(text,targetLanguage,sourceLanguage,signal), signal);
+    case "youdao-official": return (text) => withRateLimitRetry(() => translateYoudaoOfficial(text,targetLanguage,sourceLanguage,cfg.youdaoAppKey || "",cfg.youdaoAppSecret || "",signal), signal);
+    case "niutrans": return (text) => withRateLimitRetry(() => translateNiuTrans(text,targetLanguage,sourceLanguage,cfg.niutransApiKey || "",cfg.niutransApiUrl,signal), signal);
     case "ai":
       return async (text: string) => {
         if (!cfg.aiApiUrl)
@@ -1015,6 +1102,7 @@ function createTranslatorUncached(
             apiKey: cfg.aiApiKey,
             model: cfg.aiModel,
             prompt: cfg.aiPrompt,
+            signal,
           },
         );
         if (!result.success)
@@ -1031,6 +1119,7 @@ function createTranslatorUncached(
           sourceLanguage,
           {
             apiKey: cfg.googleApiKey,
+            signal,
           },
         );
         if (!result.success)
@@ -1039,35 +1128,7 @@ function createTranslatorUncached(
           );
         return result.translatedText!;
       };
-      // Default-engine resilience: when Google is unreachable (network block,
-      // rate limit, outage) fall back to the keyless Bing web endpoint, which
-      // is reachable in regions Google is not. Applies to both the keyless and
-      // the keyed Google paths — it only ever fires after Google failed.
-      return async (text: string) => {
-        try {
-          return await googleOnly(text);
-        } catch (googleErr) {
-          const bing = await translateWithBingWeb(
-            text,
-            targetLanguage,
-            sourceLanguage,
-          );
-          if (!bing.success) {
-            throw new Error(
-              getString("translation-error-google-fallback-failed", {
-                googleError:
-                  googleErr instanceof Error
-                    ? googleErr.message
-                    : String(googleErr),
-                bingError:
-                  bing.error || getString("translation-error-unknown"),
-              }),
-              { cause: googleErr },
-            );
-          }
-          return bing.translatedText!;
-        }
-      };
+      return googleOnly;
     }
     case "bing":
       return async (text: string) => {
@@ -1080,6 +1141,7 @@ function createTranslatorUncached(
           {
             apiKey: cfg.bingApiKey,
             region: cfg.bingRegion || "global",
+            signal,
           },
         );
         if (!result.success)
@@ -1090,10 +1152,9 @@ function createTranslatorUncached(
       };
     case "bing-web":
       return async (text: string) => {
-        const result = await translateWithBingWeb(
-          text,
-          targetLanguage,
-          sourceLanguage,
+        const result = await withRateLimitRetry(
+          () => translateWithBingWeb(text, targetLanguage, sourceLanguage, signal),
+          signal,
         );
         if (!result.success)
           throw new Error(
@@ -1112,6 +1173,7 @@ function createTranslatorUncached(
           {
             apiKey: cfg.deeplApiKey,
             useFreeEndpoint: cfg.deeplUseFree,
+            signal,
           },
         );
         if (!result.success)
@@ -1134,10 +1196,6 @@ function createTranslatorUncached(
         return result.translatedText || "";
       };
     case "custom":
-    // Unknown engine id falls through to the custom engine: it is the only
-    // engine that can honour a system prompt without a user-owned template, and
-    // it fails with an actionable configuration error when unconfigured.
-    default:
       return async (text: string) => {
         if (!cfg.customApiUrl)
           throw new Error(getString("translation-error-custom-url-missing"));
@@ -1149,6 +1207,7 @@ function createTranslatorUncached(
             apiUrl: cfg.customApiUrl,
             apiKey: cfg.customApiKey,
             model: cfg.customModel,
+            signal,
           },
         );
         if (!result.success)
@@ -1157,6 +1216,8 @@ function createTranslatorUncached(
           );
         return result.translatedText || "";
       };
+    default:
+      return async () => { throw new Error("当前翻译引擎不可用，请在设置中重新选择引擎。"); };
   }
 }
 
@@ -1190,7 +1251,7 @@ const BatchTranslationSchema = z.object({
  */
 export function supportsBatching(): boolean {
   const t = getEngineConfig().engineType;
-  return t === "custom" || t === "ai";
+  return t === "custom" || t === "ai" || t === "mtranserver";
 }
 
 /**
@@ -1236,7 +1297,7 @@ function calibrateCharsPerToken(
 const CANCELLED = "translation_cancelled";
 
 function isCancelled(e: unknown): boolean {
-  return e instanceof Error && e.message === CANCELLED;
+  return e instanceof Error && (e.message === CANCELLED || e.name === "AbortError");
 }
 
 const RETRY_BACKOFF_MS = 500;
@@ -1355,10 +1416,21 @@ export async function createAIBatchTranslator(
   targetLanguage: string,
   sourceLanguage?: string,
 ): Promise<BatchTranslatorHandle> {
+  if (getEngineConfig().engineType === "mtranserver") return {
+    inputBudgetChars: 12000, outputBudgetChars: 12000,
+    translate: async (texts, signal) => {
+      const { offlineTranslateBatch } = await import("./offlineManager");
+      const masks = texts.map(maskProtectedSentence);
+      const translated = await offlineTranslateBatch(masks.map(mask => mask.masked), targetLanguage, sourceLanguage, signal);
+      const translations = await Promise.all(masks.map(async (mask, i) => mask.restore(translated[i]) ?? await translateProtectedSentence(texts[i], async value => (await offlineTranslateBatch([value], targetLanguage, sourceLanguage, signal))[0])));
+      return { translations, failedIndices: [] };
+    },
+  };
   const cfg = getEngineConfig();
   // Both model-backed engines share this batch path; they differ in where the
   // credentials come from and whose wording drives the prompt.
   const isAI = cfg.engineType === "ai";
+  if (isAI && !validatePromptTemplate(cfg.aiPrompt).ok) throw new Error("提示词模板无效，请先修正占位符。");
   const apiUrl = isAI ? cfg.aiApiUrl : cfg.customApiUrl;
   const apiKey = isAI ? cfg.aiApiKey : cfg.customApiKey;
   const model = isAI ? cfg.aiModel : cfg.customModel;
@@ -1436,6 +1508,8 @@ export async function createAIBatchTranslator(
     texts: string[],
     signal?: AbortSignal,
   ): Promise<BatchTranslateResult> => {
+    if (signal?.aborted) throw new Error(CANCELLED);
+    return providerSlot(cfg.engineType, getEngineCapabilities(cfg.engineType).concurrency, signal, async () => {
     const inputJson = JSON.stringify({ segments: texts });
 
     // Batch phase — up to 1 + MAX_BATCH_RETRIES attempts on the SAME chunk.
@@ -1511,7 +1585,7 @@ export async function createAIBatchTranslator(
           lastError = new Error("batch JSON non-compliant after manual parse");
         }
       } catch (e) {
-        if (isCancelled(e)) throw e;
+        if (signal?.aborted || isCancelled(e) || [401,403].includes((e as any)?.status) || /credential|unauthori[sz]ed|forbidden|凭据|密钥|认证/i.test(String((e as any)?.message))) throw e;
         lastError = e;
       }
       if (attempt < MAX_BATCH_RETRIES) {
@@ -1524,9 +1598,9 @@ export async function createAIBatchTranslator(
             attempt + 1,
           );
           if (delayMs == null) break;
-          await new Promise((r) => setTimeout(r, delayMs));
+          await waitForRetry(delayMs, signal);
         } else {
-          await backoff();
+          await waitForRetry(RETRY_BACKOFF_MS, signal);
         }
       }
     }
@@ -1578,15 +1652,17 @@ export async function createAIBatchTranslator(
           signal,
         );
         const content = result.content || "";
+        validateProtectedText(texts[i], content);
         translations.push(content || texts[i]);
         if (!content && texts[i].trim()) failedIndices.push(i);
       } catch (e) {
-        if (isCancelled(e)) throw e;
+        if (signal?.aborted || isCancelled(e) || [401,403].includes((e as any)?.status) || /credential|unauthori[sz]ed|forbidden|凭据|密钥|认证/i.test(String((e as any)?.message))) throw e;
         translations.push(texts[i]);
         failedIndices.push(i);
       }
     }
     return { translations, failedIndices };
+    });
   };
 
   return { translate, inputBudgetChars, outputBudgetChars };

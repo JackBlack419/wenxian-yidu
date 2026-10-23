@@ -79,6 +79,17 @@ export class LazyTranslateQueue {
   /** Topmost visible original block (approximate reading position). */
   private topVisible: string | null = null;
 
+  /** Explicit full-document action, retaining viewport-first scheduling. */
+  translateAll(): void {
+    if (this.stopped || this.options.signal?.aborted) return;
+    for (const refPath of this.entries.keys()) {
+      const item = this.items.get(refPath);
+      if (item?.state === "failed") this.retry(refPath);
+      else if (!item) this.enqueue(refPath);
+    }
+    this.pump();
+  }
+
   constructor(
     private doc: Document,
     /**
@@ -162,7 +173,7 @@ export class LazyTranslateQueue {
       this.pump();
     } catch (e) {
       // The view may be mid-teardown — the next tick retries or stop() clears.
-      safeDebug("[Z-Transplit] lazyQueue poll: " + e);
+      safeDebug("[文献译读] lazyQueue poll: " + e);
     }
   }
 
@@ -289,6 +300,7 @@ export class LazyTranslateQueue {
       const cached = this.hooks.lookup
         ? await this.hooks.lookup(texts)
         : new Map<string, string>();
+      if (this.stopped || this.options.signal?.aborted) return;
 
       const misses: string[] = [];
       const missPositions: number[] = [];
@@ -302,6 +314,7 @@ export class LazyTranslateQueue {
 
       if (misses.length > 0) {
         const batch = await this.hooks.translateBatch(misses, this.options.signal);
+        if (this.stopped || this.options.signal?.aborted) return;
         misses.forEach((text, i) => {
           const translated = batch.translations[i];
           const failed = batch.failedIndices.includes(i);
@@ -327,7 +340,7 @@ export class LazyTranslateQueue {
           try {
             this.hooks.onDone?.(refPaths[i], translated);
           } catch (e) {
-            safeDebug("[Z-Transplit] lazyQueue onDone: " + e);
+            safeDebug("[文献译读] lazyQueue onDone: " + e);
           }
         } else {
           this.mark(refPaths[i], "failed");
@@ -341,7 +354,7 @@ export class LazyTranslateQueue {
       }
     } catch (e) {
       if (this.options.signal?.aborted) return;
-      safeDebug("[Z-Transplit] lazyQueue batch failed: " + e);
+      safeDebug("[文献译读] lazyQueue batch failed: " + e);
       for (const refPath of refPaths) {
         this.mark(refPath, "failed");
         this.failed++;

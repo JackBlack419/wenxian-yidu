@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { toErrorMessage } from "../../src/utils/error";
 import { parseJsonFromMarkdown } from "../../src/utils/json";
 import { getString, getLocaleID } from "../../src/utils/locale";
-import { truncate } from "../../src/utils/truncate";
 
 describe("toErrorMessage", () => {
   it("unwraps Error, string, number and unknown values", () => {
@@ -10,24 +9,6 @@ describe("toErrorMessage", () => {
     expect(toErrorMessage("plain")).toBe("plain");
     expect(toErrorMessage(42)).toBe("42");
     expect(toErrorMessage({ a: 1 }, "fallback")).toBe("fallback");
-  });
-});
-
-describe("truncate", () => {
-  it("returns the input untouched when it fits", () => {
-    expect(truncate("abc", 3)).toBe("abc");
-  });
-
-  it("appends the default suffix when slicing", () => {
-    expect(truncate("abcdef", 3)).toBe("abc...");
-  });
-
-  it("honours a custom suffix, a transform and tail mode", () => {
-    expect(truncate("abcdef", 3, { suffix: "…" })).toBe("abc…");
-    expect(truncate("<b>abcdef</b>", 3, { transform: (s) => s.replace(/<[^>]+>/g, "") })).toBe(
-      "abc...",
-    );
-    expect(truncate("abcdef", 3, { tail: true })).toBe("...def");
   });
 });
 
@@ -49,11 +30,11 @@ describe("parseJsonFromMarkdown", () => {
 
 describe("getString", () => {
   it("builds the prefixed Fluent id", () => {
-    expect(getLocaleID("pane-title")).toBe("ztransplit-pane-title");
+    expect(getLocaleID("pane-title")).toBe("wenxianyidu-pane-title");
   });
 
   it("falls back to the prefixed id when the locale is not initialized", () => {
-    expect(getString("pane-title")).toBe("ztransplit-pane-title");
+    expect(getString("pane-title")).toBe("wenxianyidu-pane-title");
   });
 
   it("formats messages through the stubbed Localization instance", () => {
@@ -65,7 +46,7 @@ describe("getString", () => {
             current: {
               formatMessagesSync: (messages: { id: string }[]) =>
                 messages.map((m) =>
-                  m.id === "ztransplit-pane-title"
+                  m.id === "wenxianyidu-pane-title"
                     ? { value: "Translation", attributes: [] }
                     : undefined,
                 ),
@@ -76,7 +57,7 @@ describe("getString", () => {
     };
     try {
       expect(getString("pane-title")).toBe("Translation");
-      expect(getString("missing")).toBe("ztransplit-missing");
+      expect(getString("missing")).toBe("wenxianyidu-missing");
     } finally {
       (globalThis as any)._globalThis = previous;
     }

@@ -11,6 +11,7 @@
 
 import type { BatchTranslateResult } from "./types";
 import { renderPrompt } from "./promptTemplate";
+import { protectedTextUnchanged } from "./protectedText";
 
 /**
  * Build a system prompt that instructs the model to preserve `{vn}` formula
@@ -32,7 +33,8 @@ export function formulaPreservingPrompt(
     `CRITICAL: The text contains tokens like {v0}, {v1}, {v2} that mark the position of mathematical formulas. ` +
     `You MUST preserve every such token EXACTLY as-is — same braces, same letter 'v', same number, in the correct ` +
     `position relative to the surrounding translated text. Do not translate, rename, expand, or renumber these tokens. ` +
-    `For example, input "The result is {v0} where {v1} denotes..." must keep {v0} and {v1} intact.`
+    `For example, input "The result is {v0} where {v1} denotes..." must keep {v0} and {v1} intact. ` +
+    `Preserve every formula in $...$, $$...$$, \\(...\\) or \\[...\\] exactly, including its delimiters and all variables.`
   );
 }
 
@@ -54,7 +56,7 @@ export function batchJsonPrompt(
     `CRITICAL RULES:\n` +
     `1. The output array MUST contain EXACTLY the same number of elements as the input, in the same order.\n` +
     `2. Do NOT merge, split, add, skip, or reorder segments.\n` +
-    `3. Preserve EVERY formula in $...$ or $$...$$ EXACTLY as-is. Never translate or modify content inside dollar signs.\n` +
+    `3. Preserve EVERY formula in $...$, $$...$$, \\(...\\) or \\[...\\] EXACTLY as-is, including its delimiters and variables.\n` +
     `4. Preserve tokens like {v0}, {v1} verbatim.\n` +
     `5. Output ONLY valid JSON, no markdown, no explanations.`
   );
@@ -88,7 +90,8 @@ export function batchJsonPromptFromTemplate(
     `CRITICAL RULES:\n` +
     `1. The output array MUST contain EXACTLY the same number of elements as the input, in the same order.\n` +
     `2. Do NOT merge, split, add, skip, or reorder segments.\n` +
-    `3. Output ONLY valid JSON, no markdown, no explanations.`
+    `3. Preserve {vN} tokens and every formula in $...$, $$...$$, \\(...\\) or \\[...\\] exactly, including delimiters and variables.\n` +
+    `4. Output ONLY valid JSON, no markdown, no explanations.`
   );
 }
 
@@ -106,7 +109,7 @@ export function sanitizeTranslations(
 ): BatchTranslateResult {
   const failedIndices: number[] = [];
   const out = translations.map((t, i) => {
-    if (!t && originals[i].trim()) {
+    if ((!t?.trim() && originals[i].trim()) || !protectedTextUnchanged(originals[i], t || "")) {
       failedIndices.push(i);
       return originals[i];
     }

@@ -15,7 +15,7 @@
  *                           orphan defaults (declared, never read) reported as WARN
  *   S5 FTL coverage       — every getString()/l10nID key referenced in src/addon
  *                           exists in the FTL files; unused keys as WARN
- *   S6 chrome:// URLs     — every chrome://ztransplit/content/... target exists
+ *   S6 chrome:// URLs     — every chrome://wenxianyidu/content/... target exists
  *   S7 SVG validity       — icons parse, have viewBox, contain no <script>/external
  *                           href; section icons use currentColor; manifest icons don't
  *   S8 XPI artifact       — build product present and non-trivial in size
@@ -88,8 +88,8 @@ function* grepSources(pattern) {
 // ── Load package.json ──
 const pkg = JSON.parse(readIfExists("package.json") ?? "{}");
 const cfg = pkg.config ?? {};
-const prefix = cfg.prefsPrefix ?? "extensions.zotero.ztransplit";
-const addonRef = cfg.addonRef ?? "ztransplit";
+const prefix = cfg.prefsPrefix ?? "extensions.zotero.wenxianyidu";
+const addonRef = cfg.addonRef ?? "wenxianyidu";
 
 // ── S1 manifest ──
 let manifest = null;
@@ -156,7 +156,7 @@ let iconTargets = [];
   if (iconTargets.length === 0) {
     warn("S2", "manifest 未声明 icons（Zotero 7 建议声明亮暗变体）", JSON.stringify(icons));
   } else {
-    // Manifest icon values appear either as chrome://ztransplit/content/... or
+    // Manifest icon values appear either as chrome://wenxianyidu/content/... or
     // as addon-relative content/... — resolve both onto the addon/ root.
     const resolveIcon = (t) =>
       join(ROOT, t.startsWith(`chrome://${addonRef}/`) ? t.replace(`chrome://${addonRef}/`, "addon/") : join("addon", t));
@@ -187,7 +187,7 @@ try {
   const prefsRaw = readIfExists("addon/prefs.js") ?? "";
   // Strip the plugin's REAL preference prefix (from package.json config), not a
   // guessed two-segment one: prefs are declared fully-qualified
-  // (extensions.zotero.ztransplit.translate.enabled) while code reads them
+  // (extensions.zotero.wenxianyidu.translate.enabled) while code reads them
   // relative (translate.enabled). A guessed "extensions.<one-segment>." regex
   // leaves the addonRef segment attached and bids every key "undeclared".
   const stripPrefix = (k) =>
@@ -207,7 +207,7 @@ try {
     if (m && !m[1].includes("${")) used.add(m[1]);
   }
   // XUL preference bindings in the settings pane
-  // (<xul:preference name="extensions.zotero.ztransplit.…">) read keys without
+  // (<xul:preference name="extensions.zotero.wenxianyidu.…">) read keys without
   // any getPref() call — count them, or every engine credential reads as dead.
   // Two guards: skip comment lines (doc comments show example bindings), and
   // skip placeholder keys containing an ellipsis (they are examples, not keys).

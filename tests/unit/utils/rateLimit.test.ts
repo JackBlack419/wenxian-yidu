@@ -84,6 +84,16 @@ describe("isRateLimitError / retryAfterOfError", () => {
     expect(isRateLimitError("429")).toBe(false);
   });
 
+  it("把有道试用的 411 与供应商频率文案也识别为限流", () => {
+    // 有道免注册端点实测：约 6 次请求后回 { errorCode: "411", msg: "请求频率过快" }。
+    expect(isRateLimitError(Object.assign(new Error("有道：请求过于频繁"), { status: 411 }))).toBe(true);
+    expect(isRateLimitError(new Error("有道：请求过于频繁，请稍后重试或降低并发。"))).toBe(true);
+    expect(isRateLimitError(new Error("rate limit exceeded"))).toBe(true);
+    expect(isRateLimitError(new Error("Too Many Requests"))).toBe(true);
+    // 401/403 是凭据问题，不能当限流去等待重试。
+    expect(isRateLimitError(Object.assign(new Error("HTTP 401: bad key"), { status: 401 }))).toBe(false);
+  });
+
   it("retryAfterOfError 对缺失或非法值返回 null", () => {
     expect(retryAfterOfError(new Error("x"))).toBeNull();
     expect(retryAfterOfError(Object.assign(new Error("x"), { retryAfterSec: "9" }))).toBeNull();

@@ -19,6 +19,7 @@ coverage/
 
 # Local QA profile (real-device testing)
 zt-qa/
+.qa/
 
 # Editor / OS
 .DS_Store
@@ -30,6 +31,9 @@ Desktop.ini
 # Local agent scratch data
 .zcode/
 .verify/
+.local-archive/
+.env.*
+!.env.example
 
 # Scratch dirs (render previews, QA staging, etc.)
 .tmp*/

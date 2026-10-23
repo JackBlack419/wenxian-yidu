@@ -10,6 +10,9 @@ import { safeDebug } from "../../../utils/logger";
 import { toErrorMessage } from "../../../utils/error";
 import { getPrefDynamic } from "../../../utils/prefs";
 import { createAbortController } from "../../../utils/abort";
+import { ensureEngineAvailable } from "../../translation/engineSelection";
+import { updateTranslationStatus } from "../splitview/translationStatus";
+import { returnToOriginalPdf } from "./sdtBridge";
 import {
   enterBilingualSession,
   exitBilingualSession,
@@ -25,6 +28,7 @@ import {
   createAIBatchTranslator,
   createTranslator,
   supportsBatching,
+  engineCacheIdentity,
 } from "../../translation/translationEngines";
 
 interface SessionState {
@@ -35,6 +39,7 @@ interface SessionState {
 }
 
 let active: SessionState | null = null;
+let sessionRevision = 0;
 const listeners = new Set<() => void>();
 
 /**
@@ -127,6 +132,7 @@ export async function startBilingualSession(options: {
   signal?: AbortSignal;
   onProgress?: (stats: QueueStats) => void;
 }): Promise<InterleaveHandle | null> {
+  if (!await ensureEngineAvailable()) return null;
   const {
     reader,
     itemID,
@@ -141,7 +147,7 @@ export async function startBilingualSession(options: {
     if (
       options.itemID !== undefined &&
       active.itemID !== -1 &&
-      active.itemID === options.itemID
+      active.itemID === options.itemID && !active.abort.signal.aborted
     ) {
       try {
         active.handle.setMode(options.mode);
@@ -154,12 +160,15 @@ export async function startBilingualSession(options: {
   }
 
   noteEngineError(null);
+  const revision = ++sessionRevision;
+  updateTranslationStatus({ sourceItemID: itemID ?? reader?.itemID ?? null, phase: "running", done: 0, total: 0, failed: 0, title: "", message: "" });
 
   await waitForReaderSdtEntry(reader);
 
   const session = await enterBilingualSession(reader);
   if (!session) {
-    safeDebug("[Z-Transplit] bilingualLauncher: session unavailable");
+    updateTranslationStatus({ sourceItemID: itemID ?? reader?.itemID ?? null, phase: "idle" });
+    safeDebug("[文献译读] bilingualLauncher: session unavailable");
     return null;
   }
 
@@ -175,12 +184,17 @@ export async function startBilingualSession(options: {
 
     const handle = await buildInterleave(session, {
       targetLanguage: lang,
-      cacheIdentity,
+      cacheIdentity: cacheIdentity ?? engineCacheIdentity(),
       batchTranslate,
       signal: effectiveSignal,
       onProgress: (stats) => {
+        if (revision !== sessionRevision) return;
+        updateTranslationStatus({ sourceItemID: itemID ?? reader?.itemID ?? null,
+          phase: effectiveSignal.aborted ? "cancelled" : stats.loading > 0 || stats.queued > 0 ? "running" : "complete",
+          done: stats.done, total: stats.total, failed: stats.failed, title: "", message: "" });
         onProgress?.(stats);
       },
+      onReturn: async () => { await stopBilingualSession(); await returnToOriginalPdf(reader); },
     });
 
     handle.setMode(mode);
@@ -189,6 +203,7 @@ export async function startBilingualSession(options: {
     notify();
     return handle;
   } catch (e) {
+    if (revision === sessionRevision) updateTranslationStatus({ sourceItemID: itemID ?? reader?.itemID ?? null, phase: signal?.aborted ? "cancelled" : "failed" });
     await exitBilingualSession(session);
     throw e;
   }
@@ -235,7 +250,7 @@ export async function startBilingualSessionByItemID(options: {
   }
 
   if (!reader) {
-    safeDebug("[Z-Transplit] bilingualLauncher: reader for item " + itemID + " not found");
+    safeDebug("[文献译读] bilingualLauncher: reader for item " + itemID + " not found");
     return null;
   }
 
@@ -254,6 +269,8 @@ export async function stopBilingualSession(): Promise<void> {
   const current = active;
   active = null;
   if (!current) return;
+  sessionRevision++;
+  updateTranslationStatus({ sourceItemID: current.itemID, phase: "idle", done: 0, total: 0, failed: 0, title: "", message: "" });
 
   try {
     current.abort.abort();
@@ -263,10 +280,18 @@ export async function stopBilingualSession(): Promise<void> {
   try {
     await current.handle.dispose();
   } catch (e) {
-    safeDebug("[Z-Transplit] bilingualLauncher stop: " + e);
+    safeDebug("[文献译读] bilingualLauncher stop: " + e);
     await exitBilingualSession(current.session);
   }
   notify();
+}
+
+/** Cancel remaining requests while retaining already displayed translations. */
+export function cancelBilingualTranslation(itemID?: number): boolean {
+  if (!active || (itemID !== undefined && active.itemID !== itemID)) return false;
+  active.abort.abort();
+  updateTranslationStatus({ sourceItemID: active.itemID, phase: "cancelled" });
+  return true;
 }
 
 export async function disposeActiveBilingualSession(): Promise<void> {
@@ -280,8 +305,8 @@ async function makeBatchTranslator(
     const handle = await createAIBatchTranslator(targetLanguage);
     return (texts, signal) => handle.translate(texts, signal);
   }
-  const translator = createTranslator(targetLanguage);
   return async (texts, signal) => {
+    const translator = createTranslator(targetLanguage, undefined, signal);
     const out: string[] = [];
     const failed: number[] = [];
     for (let i = 0; i < texts.length; i++) {

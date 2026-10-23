@@ -2,7 +2,7 @@
  * zotero-mock — Programmable Zotero global mock for z-transplit unit tests.
  *
  * Covers every Zotero surface the ported translation code touches:
- *   - Prefs (get/set with an in-memory map, `extensions.zotero.ztransplit.*`)
+ *   - Prefs (get/set with an in-memory map, `extensions.zotero.wenxianyidu.*`)
  *   - locale / debug / platform flags (isWin/isMac/platform) — forceable, so
  *     platform.ts OS detection can be tested on any host
  *   - PDFTranslate bridge (present/absent toggle)
@@ -76,6 +76,8 @@ export class PrefMap {
     return [...this.map.keys()];
   }
 
+  delete(key: string): void { this.map.delete(key); }
+
   clear(): void {
     this.map.clear();
     this.writes.length = 0;
@@ -107,6 +109,8 @@ export class ZoteroMock {
   readonly registeredMenus: Array<{ id: string; [k: string]: unknown }> = [];
   readonly debugLines: string[] = [];
   readonly progressWindows: Array<{ headline: string; descriptions: string[] }> = [];
+  /** Fake password manager, separate from the plaintext preference branch. */
+  readonly credentials = new Map<string, string>();
   locale: string;
   platform: "win" | "mac" | "linux";
   pdfTranslate: any;
@@ -143,14 +147,23 @@ export class ZoteroMock {
   }
   private savedZotero: unknown;
   private savedTabs: unknown;
+  private savedServices: unknown;
+  private savedComponents: unknown;
 
   constructor(opts: ZoteroMockOptions = {}) {
-    this.prefix = "extensions.zotero.ztransplit";
+    this.prefix = "extensions.zotero.wenxianyidu";
     this.prefs = new PrefMap();
     this.locale = opts.locale ?? "zh-CN";
     this.platform = opts.platform ?? "linux";
     this.pdfTranslate = opts.pdfTranslate ?? null;
-    if (opts.prefs) this.prefs.load(opts.prefs, this.prefix);
+    if (opts.prefs) {
+      const ordinary: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(opts.prefs)) {
+        if (/^translate\.[^.]+\.(?:apiKey|appKey|appSecret)$/.test(key)) this.credentials.set(key, String(value ?? ""));
+        else ordinary[key] = value;
+      }
+      this.prefs.load(ordinary, this.prefix);
+    }
   }
 
   get Zotero(): any {
@@ -174,6 +187,7 @@ export class ZoteroMock {
         set: (key: string, value: unknown) => {
           self.prefs.set(key, value);
         },
+        clear: (key: string) => self.prefs.delete(key),
       },
       PDFTranslate: self.pdfTranslate,
       getMainWindow: () => null,
@@ -232,8 +246,29 @@ export class ZoteroMock {
   install(): void {
     this.savedZotero = (globalThis as any).Zotero;
     this.savedTabs = (globalThis as any).Zotero_Tabs;
+    this.savedServices = (globalThis as any).Services;
+    this.savedComponents = (globalThis as any).Components;
     (globalThis as any).Zotero = this.Zotero;
     (globalThis as any).Zotero_Tabs = { selectedID: this.reader?.tabID ?? 1 };
+    const credentials = this.credentials;
+    const entries = () => [...credentials].map(([username, password]) => ({ username, password }));
+    (globalThis as any).Services = {
+      ...((globalThis as any).Services ?? {}),
+      logins: {
+        findLogins: () => entries(),
+        addLoginAsync: async (entry: any) => { credentials.set(entry.username, entry.password); },
+        modifyLogin: (_old: any, entry: any) => { credentials.set(entry.username, entry.password); },
+        removeLogin: (entry: any) => { credentials.delete(entry.username); },
+      },
+    };
+    const previous = (globalThis as any).Components ?? {};
+    (globalThis as any).Components = {
+      ...previous,
+      interfaces: { ...(previous.interfaces ?? {}), nsILoginInfo: {} },
+      classes: { ...(previous.classes ?? {}), "@mozilla.org/login-manager/loginInfo;1": { createInstance: () => ({
+        init(origin: string, _form: null, realm: string, username: string, password: string) { Object.assign(this, {origin, realm, username, password}); },
+      }) } },
+    };
   }
 
   uninstall(): void {
@@ -241,6 +276,10 @@ export class ZoteroMock {
     else (globalThis as any).Zotero = this.savedZotero;
     if (this.savedTabs === undefined) delete (globalThis as any).Zotero_Tabs;
     else (globalThis as any).Zotero_Tabs = this.savedTabs;
+    if (this.savedServices === undefined) delete (globalThis as any).Services;
+    else (globalThis as any).Services = this.savedServices;
+    if (this.savedComponents === undefined) delete (globalThis as any).Components;
+    else (globalThis as any).Components = this.savedComponents;
   }
 
   /**

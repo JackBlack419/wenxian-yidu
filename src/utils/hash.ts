@@ -24,7 +24,7 @@ export async function sha256Hex(data: Uint8Array): Promise<string | null> {
     }
     return hex;
   } catch (e) {
-    safeDebug("[Z-Transplit] hash: " + e);
+    safeDebug("[文献译读] hash: " + e);
     return null;
   }
 }

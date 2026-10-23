@@ -22,7 +22,7 @@
  * These are tracked for Phase 2 — see research doc §6.2 "布局重建".
  *
  * Ported from leadero's src/core/pdf/translation/LayoutPreservingRenderer.ts.
- * Changes: log prefixes + PDF metadata producer/creator are Z-Transplit's own
+ * Changes: log prefixes + PDF metadata producer/creator are 文献译读's own
  * (the old values leaked the source plugin's name into output PDFs).
  *
  * @module core/pdf/translation/LayoutPreservingRenderer
@@ -351,7 +351,7 @@ export async function renderLayoutPreserving(
         });
         stats.imagesRendered++;
       } catch (e) {
-        safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+        safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
         // Bad data URI / unsupported format — degrade gracefully, keep going.
         stats.imagesDropped++;
       }
@@ -513,11 +513,11 @@ export async function renderOverlayTranslated(
   // the source in file properties. Overlay mode inherits the source's other
   // metadata (author/subject) via PDFDocument.load; we only override the title.
   try {
-    pdfDoc.setTitle(options.docTitle ?? "Z-Transplit translated PDF");
-    pdfDoc.setProducer("Z-Transplit PDF translation");
-    pdfDoc.setCreator("Z-Transplit");
+    pdfDoc.setTitle(options.docTitle ?? "文献译读 translated PDF");
+    pdfDoc.setProducer("文献译读 PDF translation");
+    pdfDoc.setCreator("文献译读");
   } catch (e) {
-    safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+    safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
     // best-effort — some PDFs have locked/encrypted Info dicts
   }
 
@@ -582,7 +582,7 @@ async function buildFontSet(
   try {
     regular = await pdfDoc.embedFont(cjkFontBytes as any, { subset: true });
   } catch (e) {
-    safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+    safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
     regular = await pdfDoc.embedFont(StandardFonts.Helvetica);
     useCJK = false;
   }
@@ -593,7 +593,7 @@ async function buildFontSet(
     try {
       return await pdfDoc.embedFont(buf as any, { subset: true });
     } catch (e) {
-      safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+      safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
       return undefined; // variant unusable → degrade to regular downstream
     }
   };
@@ -740,7 +740,7 @@ function renderParagraph(
         });
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+      safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
       // Glyph missing in StandardFonts (e.g. CJK) — skip silently; Phase 2 font embedding fixes this.
     }
     baselineY -= size * lh;
@@ -781,7 +781,7 @@ function drawLineMixed(
     try {
       page.drawText(seg, { x: cursorX, y, size, font, color });
     } catch (e) {
-      safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+      safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
       /* glyph missing in this font — skip segment silently */
     }
     cursorX += font.widthOfTextAtSize(seg, size);
@@ -818,7 +818,7 @@ function sanitizeForFont(text: string, font: PDFFont): string {
       font.encodeText(ch);
       out += ch;
     } catch (e) {
-      safeDebug("[Z-Transplit] LayoutPreservingRenderer: " + e);
+      safeDebug("[文献译读] LayoutPreservingRenderer: " + e);
       out += "?";
     }
   }

@@ -1,1 +1,1 @@
-// Example: `preference="extensions.zotero.ztransplit.…"` binds a key.
+// Example: `preference="extensions.zotero.wenxianyidu.…"` binds a key.

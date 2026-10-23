@@ -17,6 +17,7 @@
  */
 
 import { safeDebug } from "../../../utils/logger";
+import { bindReflowSelection, unbindReflowSelection } from "./selectionBridge";
 
 /** One translatable text block of the SDT reading-mode view. */
 export interface SdtBlock {
@@ -64,7 +65,7 @@ export async function enterBilingualSession(
       typeof internalReader._setReadingMode !== "function" ||
       typeof internalReader._loadSDT !== "function"
     ) {
-      safeDebug("[Z-Transplit] sdtBridge: SDT mode API not present");
+      safeDebug("[文献译读] sdtBridge: SDT mode API not present");
       return null;
     }
 
@@ -96,7 +97,7 @@ export async function enterBilingualSession(
       // (primary, enabled) — BOTH must be passed (see safeExit).
       await withTimeout(rawInternal._setReadingMode(true, true), ENTER_TIMEOUT_MS);
     } else {
-      safeDebug("[Z-Transplit] sdtBridge: no reading-mode entry point");
+      safeDebug("[文献译读] sdtBridge: no reading-mode entry point");
       return null;
     }
 
@@ -111,7 +112,7 @@ export async function enterBilingualSession(
     }
     if (!sdtView) {
       safeDebug(
-        "[Z-Transplit] sdtBridge: _primarySDTView never appeared" +
+        "[文献译读] sdtBridge: _primarySDTView never appeared" +
           " (state.loading=" + rawInternal._state?.readingModeLoading +
           " enabled=" + rawInternal._state?.primaryReadingModeEnabled + ")",
       );
@@ -143,12 +144,15 @@ export async function enterBilingualSession(
       await sleep(250);
     }
     if (!container || blocks.length === 0) {
-      safeDebug("[Z-Transplit] sdtBridge: no translatable blocks");
+      safeDebug("[文献译读] sdtBridge: no translatable blocks");
       await safeExit(internalReader);
       return null;
     }
 
+    const doc = rawView._iframe?.contentDocument ?? container.ownerDocument;
+    const unbindSelection = bindReflowSelection(reader, doc);
     const exit = async (): Promise<void> => {
+      unbindSelection();
       await safeExit(internalReader);
     };
 
@@ -156,13 +160,13 @@ export async function enterBilingualSession(
       reader,
       internalReader,
       sdtView: rawView,
-      doc: rawView._iframe?.contentDocument ?? container.ownerDocument,
+      doc,
       container,
       blocks,
       exit,
     };
   } catch (e) {
-    safeDebug("[Z-Transplit] sdtBridge enter failed: " + e);
+    safeDebug("[文献译读] sdtBridge enter failed: " + e);
     return null;
   }
 }
@@ -173,7 +177,13 @@ export async function exitBilingualSession(session: BilingualSession | null): Pr
   await session.exit();
 }
 
+/** Keep the internal Zotero argument order out of product UI code. */
+export async function returnToOriginalPdf(reader: any): Promise<void> {
+  await safeExit(reader?._internalReader ?? reader);
+}
+
 async function safeExit(internalReader: any): Promise<void> {
+  unbindReflowSelection(internalReader);
   try {
     // Raw object for the same Xray reason as the enter call (see above).
     // SIGNATURE TRAP (found in the 10.0.3 verification): _setReadingMode takes
@@ -182,11 +192,11 @@ async function safeExit(internalReader: any): Promise<void> {
     const raw: any = internalReader?.wrappedJSObject ?? internalReader;
     await raw?._setReadingMode?.(true, false);
     safeDebug(
-      "[Z-Transplit] sdtBridge: exit done, view=" +
+      "[文献译读] sdtBridge: exit done, view=" +
         !!raw?._primarySDTView,
     );
   } catch (e) {
-    safeDebug("[Z-Transplit] sdtBridge exit failed: " + e);
+    safeDebug("[文献译读] sdtBridge exit failed: " + e);
   }
 }
 
@@ -206,24 +216,59 @@ async function withTimeout(p: Promise<unknown>, ms: number): Promise<unknown> {
 
 
 /**
- * Collect the translatable top-level blocks.
+ * Collect translatable blocks in document order. SDT list containers are not
+ * blocks themselves: their LI descendants are, including nested lists. An LI
+ * is one block even when it contains P elements; nested list contents are
+ * collected separately so neither the parent nor its child paragraph repeats
+ * their text.
  *
  * The renderer maps block types to tags: paragraph→p, heading→h2,
- * caption→figcaption, note→aside, preformatted→pre. Containers (lists,
- * tables), images and math carry a ref-path too but translating their
- * aggregated text is wrong, so they are skipped — same for reference sections.
+ * caption→figcaption, note→aside, preformatted→pre. List items are collected
+ * recursively, while containers, tables, images, math and references are
+ * skipped.
  */
 const TRANSLATABLE_TAGS = new Set(["P", "H2", "FIGCAPTION", "ASIDE", "PRE"]);
+const LIST_TAGS = new Set(["UL", "OL"]);
+const SKIPPED_TAGS = new Set(["TABLE", "FIGURE", "IMG", "MATH", "SVG"]);
 
 export function collectBlocks(container: HTMLElement): SdtBlock[] {
   const blocks: SdtBlock[] = [];
-  for (const el of Array.from(container.children) as HTMLElement[]) {
+  const seen = new Set<string>();
+  const isSkipped = (el: HTMLElement) =>
+    SKIPPED_TAGS.has(el.tagName) ||
+    el.matches(".sdt-reference, .sdt-math, .sdt-formula, [role='math']");
+  const add = (el: HTMLElement, text = el.innerText || el.textContent || "") => {
     const refPath = el.dataset?.refPath;
-    if (!refPath || !TRANSLATABLE_TAGS.has(el.tagName)) continue;
-    if (el.classList.contains("sdt-reference")) continue;
-    const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
-    if (text.length < 2) continue;
+    text = text.replace(/\s+/g, " ").trim();
+    if (!refPath || seen.has(refPath) || text.length < 2) return;
+    seen.add(refPath);
     blocks.push({ refPath, el, text });
+  };
+  const visitList = (list: HTMLElement): void => {
+    for (const item of Array.from(list.children) as HTMLElement[]) {
+      if (item.tagName !== "LI" || isSkipped(item)) continue;
+      const textOnly = item.cloneNode(true) as HTMLElement;
+      textOnly
+        .querySelectorAll(
+          "ul, ol, table, figure, img, math, svg, .sdt-reference, .sdt-math, .sdt-formula, [role='math']",
+        )
+        .forEach((el: Element) => el.remove());
+      add(item, textOnly.innerText || textOnly.textContent || "");
+      for (const nested of Array.from(item.querySelectorAll("ul, ol")) as HTMLElement[]) {
+        if (
+          nested.closest("li") === item &&
+          !nested.closest("table, figure, img, math, svg, .sdt-reference, .sdt-math, .sdt-formula, [role='math']")
+        ) {
+          visitList(nested);
+        }
+      }
+    }
+  };
+
+  for (const el of Array.from(container.children) as HTMLElement[]) {
+    if (isSkipped(el)) continue;
+    if (LIST_TAGS.has(el.tagName)) visitList(el);
+    else if (TRANSLATABLE_TAGS.has(el.tagName)) add(el);
   }
   return blocks;
 }

@@ -25,6 +25,7 @@ import { buildReaderConfig, cloneIntoConfig } from "./readerConfig";
 import { getString } from "../../../utils/locale";
 import { safeDebug } from "../../../utils/logger";
 import { toErrorMessage } from "../../../utils/error";
+import { bindSplitReader } from "../../../ui/readerContext";
 
 
 
@@ -56,6 +57,8 @@ export class ReaderPane implements ReaderPaneAdapter {
 
   private tabID = "";
   private side: "left" | "right" = "left";
+  /** Removes the customEvent bridge installed in installReaderEventBridge(). */
+  private readerEventCleanup: (() => void) | null = null;
 
   constructor(item: any) {
     this.item = item;
@@ -80,9 +83,74 @@ export class ReaderPane implements ReaderPaneAdapter {
       onChangeViewState: opts.onChangeViewState,
     });
 
+    // 必须在 createReader 之前挂：阅读器的 React 工具栏在首次渲染时就会派发
+    // customEvent，晚一步挂监听就错过第一次 renderToolbar。
+    this.installReaderEventBridge(browser);
     wrappedWin.createReader(cloneIntoConfig(config, win));
     await this.waitForInternalReader();
     this.ready = true;
+  }
+
+  /**
+   * 把窗格内 reader.html 派发的 customEvent 桥接回 Zotero.Reader 的事件总线。
+   *
+   * 普通阅读器由 ReaderInstance._open() 完成这件事：它在 reader.html 窗口上
+   * 监听 `customEvent`，把 detail 补上 `reader` 后交给
+   * `Zotero.Reader._dispatchEvent()`，插件注册的 renderToolbar / 右键菜单
+   * 监听器才有事件可收。
+   *
+   * 分屏窗格绕过了 ReaderInstance（我们直接调用 createReader），所以这条链路
+   * 原本根本不存在——这就是分屏标签页两个窗格里都没有「翻译 ▾」的根因。
+   * 这里按宿主同样的方式补上桥接；只转发 renderToolbar，避免让分屏窗格意外
+   * 触发未在窗格里验证过的其它事件类型。
+   */
+  private installReaderEventBridge(browser: any): void {
+    const win: any = browser?.contentWindow;
+    if (!win) return;
+    const Reader = (Zotero as any).Reader;
+    if (typeof Reader?._dispatchEvent !== "function") return;
+    const itemID = this.item?.id;
+    const proxy = { itemID, _iframeWindow: win, splitPane: this.side, get _internalReader() { return (win.wrappedJSObject || win)._reader; } };
+    const unbind = this.side === "left" ? bindSplitReader(this.tabID, proxy) : () => {};
+
+    const handler = (event: any) => {
+      try {
+        const detail: any = event?.detail;
+        const data: any = detail?.wrappedJSObject ?? detail;
+        if (!data || !(data.type === "renderToolbar" || (this.side === "left" && data.type === "renderTextSelectionPopup"))) return;
+
+        const append = data.append;
+        if (typeof append !== "function") return;
+        // 事件来自内容 realm：宿主同样把 append 包一层 cloneInto，让 chrome
+        // 侧创建的节点被克隆进 reader.html 的窗口后再插入。
+        data.append = (...args: any[]) => {
+          const Cu = (Components as any).utils;
+          const cloned = Cu?.cloneInto
+            ? Cu.cloneInto(args, win, {
+                wrapReflectors: true,
+                cloneFunctions: true,
+              })
+            : args;
+          append(...cloned);
+        };
+        // 插件侧只用 itemID 定位条目；分屏窗格没有对应的 ReaderInstance，
+        // 用最小替身即可（另附窗格信息，便于排查）。
+        data.reader = proxy;
+        Reader._dispatchEvent(data);
+      } catch (e) {
+        safeDebug("[文献译读] readerPaneAdapter: event bridge failed: " + e);
+      }
+    };
+    win.addEventListener("customEvent", handler);
+    this.readerEventCleanup = () => {
+      unbind();
+      try {
+        win.removeEventListener("customEvent", handler);
+      } catch (e) {
+        safeDebug("[文献译读] readerPaneAdapter: " + e);
+        /* best-effort */
+      }
+    };
   }
 
   /** Wait for the <browser> to finish loading reader.html. */
@@ -253,7 +321,7 @@ export class ReaderPane implements ReaderPaneAdapter {
       el.scrollTop = target;
       return true;
     } catch (e) {
-      safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+      safeDebug("[文献译读] readerPaneAdapter: " + e);
       return false;
     }
   }
@@ -282,7 +350,7 @@ export class ReaderPane implements ReaderPaneAdapter {
       el.scrollLeft = target;
       return true;
     } catch (e) {
-      safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+      safeDebug("[文献译读] readerPaneAdapter: " + e);
       return false;
     }
   }
@@ -318,13 +386,13 @@ export class ReaderPane implements ReaderPaneAdapter {
         try {
           view.el.removeEventListener("scroll", cb);
         } catch (e) {
-          safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+          safeDebug("[文献译读] readerPaneAdapter: " + e);
           /* best-effort */
         }
         try {
           Cu.revoke?.(cb);
         } catch (e) {
-          safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+          safeDebug("[文献译读] readerPaneAdapter: " + e);
           /* best-effort */
         }
       };
@@ -332,7 +400,7 @@ export class ReaderPane implements ReaderPaneAdapter {
       // 带上侧别：两侧注入独立发生，只报一侧失败时能直接定位是哪一窗格
       // 退回了 400ms 轮询慢路径。
       Zotero.debug?.(
-        "[Z-Transplit splitView] installScrollTrigger failed for " +
+        "[文献译读 splitView] installScrollTrigger failed for " +
           this.side +
           " pane: " +
           toErrorMessage(e),
@@ -364,7 +432,7 @@ export class ReaderPane implements ReaderPaneAdapter {
       pdfViewer.currentScale = scale;
       return true;
     } catch (e) {
-      safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+      safeDebug("[文献译读] readerPaneAdapter: " + e);
       return false;
     }
   }
@@ -388,7 +456,7 @@ export class ReaderPane implements ReaderPaneAdapter {
       pdfViewer.currentScaleValue = value;
       return true;
     } catch (e) {
-      safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+      safeDebug("[文献译读] readerPaneAdapter: " + e);
       return false;
     }
   }
@@ -477,7 +545,7 @@ export class ReaderPane implements ReaderPaneAdapter {
       await primaryView._setState(cloned);
     } catch (e: any) {
       Zotero.debug?.(
-        "[Z-Transplit splitView] applyPreciseState _setState failed: " +
+        "[文献译读 splitView] applyPreciseState _setState failed: " +
           (toErrorMessage(e)),
       );
     }
@@ -500,6 +568,8 @@ export class ReaderPane implements ReaderPaneAdapter {
    */
   destroy(): void {
     try {
+      this.readerEventCleanup?.();
+      this.readerEventCleanup = null;
       const internal = this.getInternalReader();
       internal?.uninit?.();
       const outer = this.getOuterReader();
@@ -509,14 +579,14 @@ export class ReaderPane implements ReaderPaneAdapter {
         if (idx !== undefined && idx >= 0) readers.splice(idx, 1);
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+      safeDebug("[文献译读] readerPaneAdapter: " + e);
       /* best-effort */
     }
     if (this.browser) {
       try {
         this.browser.setAttribute("src", "about:blank");
       } catch (e) {
-        safeDebug("[Z-Transplit] readerPaneAdapter: " + e);
+        safeDebug("[文献译读] readerPaneAdapter: " + e);
         /* best-effort */
       }
     }

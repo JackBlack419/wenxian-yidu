@@ -1,7 +1,7 @@
 /**
  * PdfParseError — Explicit error type for the OpenDataLoader PDF pipeline.
  *
- * OpenDataLoader is the single PDF parsing backend in Z-Transplit. There is no
+ * OpenDataLoader is the single PDF parsing backend in 文献译读. There is no
  * silent fallback: when parsing fails, a PdfParseError propagates to the
  * caller with an actionable reason so the UI can surface it to the user.
  *
@@ -33,13 +33,13 @@ function userHint(reason: PdfParseErrorReason, detail?: string): string {
   const suffix = detail ? ` (${detail})` : "";
   switch (reason) {
     case "disabled":
-      return "PDF parsing is disabled. Enable it in Z-Transplit preferences.";
+      return "PDF parsing is disabled. Enable it in 文献译读 preferences.";
     case "no-attachment":
       return "No PDF attachment found for this item.";
     case "java-missing":
       return "Java runtime not found. OpenDataLoader requires Java 11+. Install Java, make sure `java` is on PATH, then retry.";
     case "jar-missing":
-      return "OpenDataLoader JAR is missing. Reinstall Z-Transplit to restore opendataloader-pdf-cli.jar.";
+      return "OpenDataLoader JAR is missing. Reinstall 文献译读 to restore opendataloader-pdf-cli.jar.";
     case "timeout":
       return `OpenDataLoader parsing timed out${suffix}.`;
     case "parse-failed":

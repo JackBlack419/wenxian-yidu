@@ -87,10 +87,10 @@ function die(msg) {
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function findManagedJava() {
-  // Same layout JavaRuntimeManager uses: {ZoteroDataDir}/ztransplit/java-runtime/*/bin/java.exe
+  // Same layout JavaRuntimeManager uses: {ZoteroDataDir}/wenxianyidu/java-runtime/*/bin/java.exe
   const candidates = [
-    path.join(os.homedir(), "Zotero", "ztransplit", "java-runtime"),
-    path.join(os.homedir(), "Zotero", "zotero", "ztransplit", "java-runtime"),
+    path.join(os.homedir(), "Zotero", "wenxianyidu", "java-runtime"),
+    path.join(os.homedir(), "Zotero", "zotero", "wenxianyidu", "java-runtime"),
   ];
   for (const dir of candidates) {
     if (!fs.existsSync(dir)) continue;
@@ -411,7 +411,7 @@ async function startup(data, reason) {
   // GNU tar from Git, which cannot write zip and misreads "D:\…" as host:path.
   // `tar -a` then picks the zip filter from the .zip extension; -f must get a
   // relative name for the same host:path reason.
-  const xpi = path.join(runDir, "ztransplit@zotero.org.xpi");
+  const xpi = path.join(runDir, "wenxianyidu@wenxianyidu.local.xpi");
   execFileSync(
     "C:\\Windows\\System32\\tar.exe",
     [
@@ -438,7 +438,7 @@ function prepareProfile(runDir, xpi, opts) {
   const dataDir = path.join(runDir, "data");
   fs.mkdirSync(path.join(profileDir, "extensions"), { recursive: true });
   fs.mkdirSync(dataDir, { recursive: true });
-  fs.copyFileSync(xpi, path.join(profileDir, "extensions", "ztransplit@zotero.org.xpi"));
+  fs.copyFileSync(xpi, path.join(profileDir, "extensions", "wenxianyidu@wenxianyidu.local.xpi"));
 
   const prefs = {
     "extensions.zotero.dataDir": dataDir,

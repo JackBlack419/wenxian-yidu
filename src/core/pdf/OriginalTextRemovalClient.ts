@@ -88,7 +88,7 @@ export async function removeOriginalText(
       throw new Error("original-text removal produced an invalid PDF");
     }
     safeDebug(
-      `[Z-Transplit] OriginalTextRemovalClient: cleaned PDF ${bytes.length} bytes`,
+      `[文献译读] OriginalTextRemovalClient: cleaned PDF ${bytes.length} bytes`,
     );
     return bytes;
   } finally {
@@ -142,7 +142,7 @@ export async function inspectFormTextRegions(
     }
     const text = await readFile(outPath);
     safeDebug(
-      `[Z-Transplit] OriginalTextRemovalClient: inspect regions=${
+      `[文献译读] OriginalTextRemovalClient: inspect regions=${
         text.split(/\r?\n/).filter((l) => l.trim() && !l.startsWith("#")).length
       }`,
     );

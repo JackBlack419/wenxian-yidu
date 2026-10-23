@@ -27,13 +27,16 @@ const REPO = path.resolve(
 const DYNAMIC_KEY_PREFIXES = [
   "translation-error-ai-prompt-",
   "pane-translate-card-source-",
+  "workspace-mode-",
+  "engine-label-",
+  "preferences-wenxianyidu-offline-phase-",
 ] as const;
 
 const LOCALES = ["zh-CN", "en-US"] as const;
 const FAMILIES = [
-  "ztransplit.ftl",
-  "ztransplit-preferences.ftl",
-  "ztransplit-pane.ftl",
+  "wenxianyidu.ftl",
+  "wenxianyidu-preferences.ftl",
+  "wenxianyidu-pane.ftl",
 ] as const;
 
 function ftlKeys(file: string): Set<string> {

@@ -43,6 +43,9 @@
  * @module core/pdf/translation/opendataloaderSplitAdapter
  */
 
+import { translateDocumentSegments } from "./documentSegments";
+import { acquireCroppingReader } from "./croppingReader";
+import { ensureEngineAvailable } from "../../translation/engineSelection";
 import { parsePdfWithOpenDataLoader } from "../backendSelector";
 import { odlAnalysisToAssembly } from "./odlToAssembly";
 import type { FormulaBlock } from "./odlToAssembly";
@@ -60,6 +63,7 @@ import { renderLayoutPreserving, renderOverlayTranslated } from "./LayoutPreserv
 import { mergePageBytes } from "./pdfMerge";
 import {
   importTranslatedBytes,
+  trashSupersededTranslations,
   translatedSourceBaseName,
   translatedTitleWithSource,
 } from "./translatedAttachment";
@@ -81,6 +85,7 @@ import {
   supportsBatching,
   createAIBatchTranslator,
   engineCacheIdentity,
+  getEngineCapabilities,
 } from "../../translation/translationEngines";
 import {
   checkTranslationReadiness,
@@ -93,11 +98,25 @@ import {
   readFontBytesForLang,
 } from "../platform";
 import { safeDebug } from "../../../utils/logger";
+import { createAbortController } from "../../../utils/abort";
+import { checkHealth } from "../OpenDataLoaderPdfClient";
+import { downloadJRE } from "../JavaRuntimeManager";
+import { sha256Hex } from "../../../utils/hash";
+import {
+  prepareDocumentJob, saveDocumentJob, trackDocumentJob, releaseDocumentJob,
+  reusableAttachment, type DocumentJob,
+} from "./documentJobs";
 
 
 export interface OdlSplitOptions {
   sourceItem: any;
   onProgress?: (msg: string) => void;
+  /**
+   * Structured progress callback: fired whenever the durable job record is
+   * updated (done/total/failed). The reader toolbar turns this into
+   * 「翻译中 7/18 · 失败 5 段」; the progress window keeps using onProgress.
+   */
+  onCheckpoint?: (job: DocumentJob) => void;
   /**
    * Split-view opener. Required for outcome "split" (the default); unused for
    * outcome "attachment".
@@ -113,11 +132,19 @@ export interface OdlSplitOptions {
   outcome?: "split" | "attachment";
   /** Attachment-mode callback — called after the translated PDF is imported. */
   openAttachment?: (attachmentId: number) => void;
+  /**
+   * Ignore an existing complete translation and translate again (the toolbar's
+   * "重新翻译" choice). The new result replaces the old attachment.
+   */
+  forceRetranslate?: boolean;
+  /** Internal persistent task record; callers normally omit this. */
+  job?: DocumentJob;
 }
 
 export interface OdlSplitResult {
   translatedAttachmentId: number;
   splitTabID: string | null;
+  failedCount?: number;
 }
 
 /**
@@ -129,7 +156,7 @@ export interface OdlSplitResult {
 export class TranslationCancelledError extends Error {
   constructor() {
     super(getString("odl-progress-cancelled"));
-    this.name = "ZTransplitCancelled";
+    this.name = "WenxianYiduCancelled";
   }
 }
 
@@ -141,15 +168,15 @@ function translationAssetsDir(): string {
   // path with NS_ERROR_FILE_UNRECOGNIZED_PATH (found in the README-shot round
   // on a fresh data dir; earlier rounds ran on dirs where the check happened
   // to be skipped).
-  return (globalThis as any).PathUtils?.join?.(dataDir, "ztransplit", "translation-assets")
-    ?? `${dataDir}\ztransplit	ranslation-assets`;
+  return (globalThis as any).PathUtils?.join?.(dataDir, "wenxianyidu", "translation-assets")
+    ?? `${dataDir}\wenxianyidu	ranslation-assets`;
 }
 
 /** Mix-safe join for paths under the data dir (see translationAssetsDir). */
 function joinAssetPath(dataDir: string, name: string): string {
   return (globalThis as any).PathUtils?.join?.(
-    dataDir, "ztransplit", "translation-assets", name,
-  ) ?? `${dataDir}\ztransplit	ranslation-assets\${name}`;
+    dataDir, "wenxianyidu", "translation-assets", name,
+  ) ?? `${dataDir}\wenxianyidu	ranslation-assets\${name}`;
 }
 
 /**
@@ -164,7 +191,7 @@ function realmLocalCopy(bytes: Uint8Array): Uint8Array {
 }
 
 /**
- * User font overrides live in `{DataDir}/ztransplit/translation-assets/` under
+ * User font overrides live in `{DataDir}/wenxianyidu/translation-assets/` under
  * script-neutral basenames — the same file serves every target language, and
  * users pick whatever face they prefer (e.g. Noto Serif SC to match a paper's
  * serif typography). Each name accepts .ttf / .otf / .ttc (matching the
@@ -215,7 +242,7 @@ async function readFirstAsset(names: string[]): Promise<Uint8Array | null> {
         return realmLocalCopy(await IOUtils.read(p));
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);
+      safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);
       /* ignore */
     }
   }
@@ -231,7 +258,7 @@ function overrideCandidates(basename: string, legacyName: string | null): string
 
 /**
  * Resolve the CJK font for a translation target language: the first existing
- * user-placed asset in `{DataDir}/ztransplit/translation-assets/`, then the
+ * user-placed asset in `{DataDir}/wenxianyidu/translation-assets/`, then the
  * OS system-default font for that script (via the shared platform module).
  */
 async function resolveCjkFont(targetLanguage: string): Promise<Uint8Array | null> {
@@ -269,10 +296,9 @@ async function readCjkVariants(
 function makeTranslator(
   targetLanguage: string,
   sourceLanguage?: string,
+  signal?: AbortSignal,
 ): ParagraphTranslator {
-  return async (text, _tgt, _src) => {
-    return createTranslator(targetLanguage, sourceLanguage)(text, targetLanguage, sourceLanguage);
-  };
+  return createTranslator(targetLanguage, sourceLanguage, signal);
 }
 
 /**
@@ -318,17 +344,92 @@ function assertEngineReady(): void {
  * @throws if the translation engine is not configured, the JVM is unavailable,
  *   ODL parse fails, or rendering/split-view fails.
  */
-export async function translateAndSplitWithOpenDataLoader(
+const documentWork = new Map<string, Promise<OdlSplitResult>>();
+
+export async function translateAndSplitWithOpenDataLoader(opts: OdlSplitOptions): Promise<OdlSplitResult> {
+  if (!await ensureEngineAvailable()) throw new TranslationCancelledError();
+  assertEngineReady();
+  const job = await prepareDocumentJob(opts.sourceItem);
+  const existing = opts.forceRetranslate ? null : await reusableAttachment(job);
+  if (existing) {
+    opts.onProgress?.("已复用当前配置下的完整译文。");
+    if (opts.outcome === "attachment") {
+      opts.openAttachment?.(existing.id);
+      return { translatedAttachmentId: existing.id, splitTabID: null, failedCount: 0 };
+    }
+    const splitTabID = await opts.openSplitView?.((Zotero as any).getMainWindow?.(), opts.sourceItem, existing) ?? null;
+    return { translatedAttachmentId: existing.id, splitTabID, failedCount: 0 };
+  }
+  const running = documentWork.get(job.id);
+  if (running) return running;
+  const controller = createAbortController();
+  const cancel = () => controller.abort();
+  if (opts.signal?.aborted) controller.abort();
+  else opts.signal?.addEventListener("abort", cancel, { once: true });
+  const work = (async () => {
+    job.status = "running";
+    job.stage = job.done > 0 ? "正在恢复；复用已完成分段，旧任务兼容缓存" : "准备中";
+    try {
+      await saveDocumentJob(job);
+      trackDocumentJob(job, controller);
+      opts.onCheckpoint?.({ ...job });
+      const result = await runDocumentPipeline({ ...opts, job, signal: controller.signal });
+      job.status = result.failedCount ? "partial" : "complete";
+      job.stage = result.failedCount ? "部分段落失败，可重试失败内容" : "已完成";
+      job.attachmentID = result.translatedAttachmentId;
+      job.failed = result.failedCount ?? 0;
+      await saveDocumentJob(job);
+      opts.onCheckpoint?.({ ...job });
+      return result;
+    } catch (error) {
+      job.status = controller.signal.aborted ? "cancelled" : "failed";
+      job.stage = controller.signal.aborted ? "已取消，可继续翻译" : "处理失败，可继续或重试";
+      await saveDocumentJob(job).catch(() => safeDebug("[文献译读] 任务状态尚未保存，请检查磁盘空间。"));
+      opts.onCheckpoint?.({ ...job });
+      throw controller.signal.aborted ? new TranslationCancelledError() : error;
+    } finally {
+      releaseDocumentJob(job.id);
+      documentWork.delete(job.id);
+      opts.signal?.removeEventListener("abort", cancel);
+    }
+  })();
+  documentWork.set(job.id, work);
+  return work;
+}
+
+async function runDocumentPipeline(
   opts: OdlSplitOptions,
 ): Promise<OdlSplitResult> {
   const { sourceItem, openSplitView: openSplitViewFn } = opts;
   const onProgress = opts.onProgress || (() => {});
+  const checkpoint = async (stage: string, done?: number, total?: number, failed?: number) => {
+    if (opts.signal?.aborted) throw new TranslationCancelledError();
+    if (!opts.job) return;
+    if (engineCacheIdentity() !== opts.job.configIdentity ||
+        String(getPrefDynamic("translate.targetLanguage") || "zh-CN") !== opts.job.targetLanguage) {
+      throw new Error("翻译设置已改变，本次任务已暂停。请使用当前设置重新开始；已完成的译文仍保留在原配置缓存中。");
+    }
+    opts.job.stage = stage;
+    if (done !== undefined) opts.job.done = done;
+    if (total !== undefined) opts.job.total = total;
+    if (failed !== undefined) opts.job.failed = failed;
+    await saveDocumentJob(opts.job);
+    opts.onCheckpoint?.({ ...opts.job });
+  };
 
   // 0. Preflight: the engine must be ready before we spend minutes parsing.
   assertEngineReady();
 
   // 0-1. Parse the source PDF via OpenDataLoader (the only backend).
   onProgress(getString("odl-progress-parsing"));
+  await checkpoint("正在本地解析 PDF");
+  const health = await checkHealth();
+  if (!health.healthy) {
+    await checkpoint("首次准备全文处理组件");
+    onProgress("首次全文翻译正在自动安装处理组件，安装完成后会继续。");
+    await downloadJRE(17, progress => onProgress(progress.message || "正在准备本地运行库…"));
+    if (opts.signal?.aborted) throw new TranslationCancelledError();
+  }
   const inputPath = sourceItem.getFilePath?.();
   if (!inputPath) {
     throw new Error(getString("odl-error-source-path"));
@@ -358,12 +459,12 @@ export async function translateAndSplitWithOpenDataLoader(
     );
     if (excluded > 0) {
       safeDebug(
-        `[Z-Transplit] opendataloaderSplitAdapter: excluded ${excluded} figure-region text block(s)`,
+        `[文献译读] opendataloaderSplitAdapter: excluded ${excluded} figure-region text block(s)`,
       );
     }
   } catch (e) {
     safeDebug(
-      "[Z-Transplit] opendataloaderSplitAdapter: figure-region inspection skipped: " +
+      "[文献译读] opendataloaderSplitAdapter: figure-region inspection skipped: " +
         e,
     );
   }
@@ -376,6 +477,7 @@ export async function translateAndSplitWithOpenDataLoader(
   if (totalParagraphs === 0) {
     throw new Error(getString("odl-error-parse-no-text"));
   }
+  await checkpoint("正在翻译", 0, totalParagraphs, 0);
 
   //    which the translator would corrupt. When a vision model is configured,
   //    crop each formula-bearing paragraph's bbox and ask the VLM for LaTeX,
@@ -400,6 +502,7 @@ export async function translateAndSplitWithOpenDataLoader(
   //    English runs, plus optional Bold/Italic variants. Warn loudly if the CJK
   //    font is missing for a CJK target — without it every glyph becomes '?'.
   const targetLanguage =
+    opts.job?.targetLanguage ||
     (getPrefDynamic("translate.targetLanguage") as string | undefined) ||
     // "" = follow Zotero's UI locale (addon/prefs.js declares exactly that);
     // the final "zh-CN" only guards hosts with no Zotero global at all.
@@ -409,7 +512,7 @@ export async function translateAndSplitWithOpenDataLoader(
   // merged PDF's metadata, and the Zotero attachment title. splitViewCleanup's
   // recognition regex must keep matching this convention — the Translated (<lang>)
   // (<) prefix is load-bearing; the source base name suffix names the paper.
-  const translatedTitle = translatedTitleWithSource(
+  let translatedTitle = translatedTitleWithSource(
     targetLanguage,
     translatedSourceBaseName(sourceItem),
   );
@@ -449,48 +552,42 @@ export async function translateAndSplitWithOpenDataLoader(
   //    per-page per-paragraph for stateless MT engines (Google/Bing/DeepL).
   let failedTranslations = 0;
   let translatedSets: string[][];
+  const failedPositions = new Set<string>();
 
-  if (supportsBatching()) {
-    const batchHandle = await createAIBatchTranslator(targetLanguage);
-    const batchResult = await translateAllPagesBatched(
-      assemblies.map((a) => a.texts),
-      batchHandle.translate,
-      {
-        targetLanguage,
-        // Source language is auto-detected by the engines — cache keys use "auto".
-        inputBudgetChars: batchHandle.inputBudgetChars,
-        outputBudgetChars: batchHandle.outputBudgetChars,
-        onProgress,
-        signal: opts.signal,
-        cacheIdentity: engineCacheIdentity(),
-      },
-    );
-    translatedSets = batchResult.translatedSets;
-    failedTranslations = batchResult.failedCount;
-  } else {
-    const translator = makeTranslator(targetLanguage);
-    translatedSets = [];
-    for (let i = 0; i < totalPages; i++) {
-      const assembly = assemblies[i];
-      onProgress(
-        getString("odl-progress-page", {
-          current: i + 1,
-          total: totalPages,
-          count: assembly.paragraphs.length,
-        }),
-      );
-      const { results, status } = await translateParagraphs(
-        assembly.texts,
-        translator,
-        targetLanguage,
-        undefined,
-        4,
-        { cacheIdentity: engineCacheIdentity() },
-      );
-      translatedSets.push(results);
-      failedTranslations += status.filter((s) => s && s.failed).length;
+  const result = await translateDocumentSegments({
+    pages: assemblies.map(a => a.texts), previous: opts.forceRetranslate ? undefined : opts.job?.segments,
+    target: targetLanguage, signal: opts.signal,
+    translate: makeTranslator(targetLanguage, undefined, opts.signal),
+    batch: supportsBatching() ? await createAIBatchTranslator(targetLanguage) : undefined,
+    concurrency: getEngineCapabilities().concurrency,
+    cacheIdentity: opts.job?.configIdentity ?? engineCacheIdentity(),
+    progress: (done, total) => opts.onCheckpoint?.({ ...opts.job!, done, total }),
+    checkpoint: async (segments, retrying) => {
+      if (!opts.job) return;
+      opts.job.segments = segments;
+      opts.job.done = segments.filter(s => s.status === "success").length;
+      opts.job.total = segments.length;
+      opts.job.failed = segments.filter(s => s.status === "failed").length;
+      opts.job.stage = retrying ? "正在补译失败段落（自动一轮）" : "正在翻译";
+      await saveDocumentJob(opts.job);
+      opts.onCheckpoint?.({ ...opts.job });
+      if (!opts.signal?.aborted && engineCacheIdentity() !== opts.job.configIdentity) throw new Error("翻译设置已改变，请重新开始；原配置的分段结果已保存。");
+    },
+  });
+  translatedSets = result.translatedSets;
+  failedTranslations = result.failedCount;
+  for (const position of result.failedPositions) failedPositions.add(position);
+
+  if (failedTranslations) {
+    translatedTitle += ` · 部分译文（${failedTranslations} 段失败）`;
+    onProgress(`有 ${failedTranslations} 段未翻译，原文位置已标注。再次翻译会重试失败段落。`);
+    for (let page = 0; page < translatedSets.length; page++) {
+      translatedSets[page] = translatedSets[page].map((text, index) =>
+        failedPositions.has(`${page}:${index}`)
+          ? `[未翻译 / Translation unavailable] ${text}` : text);
     }
   }
+  await checkpoint("正在排版并保留图表", totalParagraphs - failedTranslations, totalParagraphs, failedTranslations);
 
   // Abort check: if the user cancelled during translation, stop before
   // rendering — no point compositing a half-translated PDF.
@@ -510,9 +607,13 @@ export async function translateAndSplitWithOpenDataLoader(
       // IOUtils.read returns Uint8Array; ensure we have a real typed array (not
       // a view with byteOffset that confuses pdf-lib). Copy into a clean buffer.
       sourcePdfBytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+      if (opts.job && await sha256Hex(sourcePdfBytes) !== opts.job.sourceHash) {
+        throw new Error("源 PDF 在翻译期间发生变化，请重新开始翻译。");
+      }
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);
+    if (e instanceof Error && e.message.includes("源 PDF 在翻译期间")) throw e;
+    safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);
     /* fall back to white-page mode */
   }
 
@@ -530,7 +631,7 @@ export async function translateAndSplitWithOpenDataLoader(
         cleanedBytes = await removeOriginalText(inputPath, rectsContent, opts.signal);
       } catch (e) {
         safeDebug(
-          "[Z-Transplit] opendataloaderSplitAdapter: original-text removal failed, falling back to masks: " +
+          "[文献译读] opendataloaderSplitAdapter: original-text removal failed, falling back to masks: " +
             e,
         );
         cleanedBytes = null;
@@ -565,7 +666,7 @@ export async function translateAndSplitWithOpenDataLoader(
       // 删除后的 PDF 渲染失败（理论上不应发生）：用原始字节 + 遮罩兜底
       if (!cleanedBytes) throw e;
       safeDebug(
-        "[Z-Transplit] opendataloaderSplitAdapter: rendering cleaned PDF failed, falling back to masks: " +
+        "[文献译读] opendataloaderSplitAdapter: rendering cleaned PDF failed, falling back to masks: " +
           e,
       );
       const result = await renderOverlayTranslated(
@@ -604,12 +705,29 @@ export async function translateAndSplitWithOpenDataLoader(
     merged = await mergePageBytes(pageBytes, translatedTitle);
   }
   const parentItemID = sourceItem.parentItemID;
+  await checkpoint("正在保存译文附件");
   const translatedAtt = await importTranslatedBytes(
     merged,
     parentItemID,
     translatedTitle,
     sourceItem,
   );
+  // Replace, don't accumulate: a re-translation (including retrying a partial
+  // one) used to leave the previous attachment behind, so repeated runs piled
+  // up identical "Translated (zh-CN) · …" rows. Old ones go to the trash
+  // (recoverable) and only after the new file is safely imported.
+  try {
+    const removed = await trashSupersededTranslations(
+      sourceItem,
+      parentItemID,
+      translatedAtt.id,
+    );
+    if (removed > 0) {
+      safeDebug(`[文献译读] replaced ${removed} earlier translation(s)`);
+    }
+  } catch (e) {
+    safeDebug("[文献译读] superseded translation cleanup failed: " + e);
+  }
 
   // Attachment outcome: the item-tree "translate to attachment" flow stops
   // here — no split view, optional auto-open of the result.
@@ -620,11 +738,12 @@ export async function translateAndSplitWithOpenDataLoader(
     try {
       opts.openAttachment?.(translatedAtt.id);
     } catch (e) {
-      safeDebug("[Z-Transplit split] open translated attachment failed: " + e);
+      safeDebug("[文献译读 split] open translated attachment failed: " + e);
     }
     return {
       translatedAttachmentId: translatedAtt.id,
       splitTabID: null,
+      failedCount: failedTranslations,
     };
   }
 
@@ -643,7 +762,7 @@ export async function translateAndSplitWithOpenDataLoader(
     // 译文已生成并入库——失败仅发生在分屏容器打开（openSplitView 超时抛错，
     // 不再返回 null）。不能让用户以为翻译白做：结果里 translatedAttachmentId
     // 依然有效，进度条文案明确说明译文已保存。
-    safeDebug(`[Z-Transplit split] open split view failed after translation: ${e}`);
+    safeDebug(`[文献译读 split] open split view failed after translation: ${e}`);
     onProgress(
       getString("odl-progress-summary-nosplit", {
         pages: totalPages,
@@ -655,6 +774,7 @@ export async function translateAndSplitWithOpenDataLoader(
   return {
     translatedAttachmentId: translatedAtt.id,
     splitTabID,
+    failedCount: failedTranslations,
   };
 }
 
@@ -707,22 +827,16 @@ async function openReaderForCropping(
   let reader: any;
   let openedNew = false;
   try {
-    reader = await (Zotero as any).Reader.open(attachmentId);
-    openedNew = !!reader;
-    // Reader.open() returns undefined when the tab is already open — find the
-    // existing reader so we can use its pdf.js instance for rasterization.
-    if (!reader) {
-      reader = (Zotero as any).Reader?._readers?.find(
-        (r: any) => (r._itemID ?? r.itemID ?? r._attachmentId ?? r.attachmentID) === attachmentId,
-      );
-    }
+    const acquired = await acquireCroppingReader((Zotero as any).Reader, attachmentId);
+    reader = acquired?.reader;
+    openedNew = acquired?.openedNew ?? false;
     if (!reader) return null;
     await waitForReaderPdf(reader);
     return { reader, openedNew };
   } catch (_e) {
     // Only close the reader if we opened a new one.
     if (openedNew) {
-      try { reader?.close?.(); } catch (e) { safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);  /* best-effort */ }
+      try { reader?.close?.(); } catch (e) { safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);  /* best-effort */ }
     }
     return null;
   }
@@ -776,7 +890,7 @@ async function extractFormulasForTranslation(
         // "NONE" = model saw no formula — keep original text, no fallback.
         processed++;
       } catch (e) {
-        safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);
+        safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);
         // VLM extraction failed. If we have a crop, paste it back as an image
         // at the formula's bbox (better than corrupted symbols getting
         // translated). Store in placedFormulas (NOT assembly.images) so BOTH
@@ -814,7 +928,7 @@ async function extractFormulasForTranslation(
       try {
         reader?.close?.();
       } catch (e) {
-        safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);
+        safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);
         /* best-effort */
       }
     }
@@ -886,7 +1000,7 @@ async function captureFormulaScreenshots(
           failed++;
         }
       } catch (e) {
-        safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);
+        safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);
         failed++;
       }
       // Every 10 items — see the matching note in extractFormulasForTranslation.
@@ -904,7 +1018,7 @@ async function captureFormulaScreenshots(
       try {
         reader?.close?.();
       } catch (e) {
-        safeDebug("[Z-Transplit] opendataloaderSplitAdapter: " + e);
+        safeDebug("[文献译读] opendataloaderSplitAdapter: " + e);
         /* best-effort */
       }
     }

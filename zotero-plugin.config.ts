@@ -3,7 +3,7 @@ import pkg from "./package.json";
 
 /**
  * 精简版（默认）：不内置 24MB 的 OpenDataLoader 解析组件，XPI 从约 27MB 缩到
- * 约 8MB。首次解析时插件按随包分发的 PROVENANCE*.json 指纹从镜像自动下载该
+ * 约 5.2MB。首次解析时插件按随包分发的 PROVENANCE*.json 指纹从镜像自动下载该
  * 组件（见 src/core/pdf/OdlJarDownloader.ts；镜像实测与取件策略见该文件头）。
  * 完整版：设置环境变量 ZTRANSPLIT_FULL_XPI=1 构建，两个 jar 全部内置，供
  * 离线环境分发；内置时下载兜底不会被触发。
@@ -17,20 +17,17 @@ export default defineConfig({
   name: pkg.config.addonName,
   id: pkg.config.addonID,
   namespace: pkg.config.addonRef,
-  updateURL: `https://github.com/{{owner}}/{{repo}}/releases/download/release/${
-    pkg.version.includes("-") ? "update-beta.json" : "update.json"
-  }`,
-  xpiDownloadLink:
-    "https://github.com/{{owner}}/{{repo}}/releases/download/v{{version}}/{{xpiName}}.xpi",
+  // This fork only uses its own release assets.
+  updateURL: "https://github.com/JackBlack419/wenxian-yidu/releases/latest/download/updates.json",
+  xpiDownloadLink: `https://github.com/JackBlack419/wenxian-yidu/releases/download/v${pkg.version}/wenxianyidu-${pkg.version}.xpi`,
 
   release: {
-    // GitHub 发布说明从 CHANGELOG.md 当前版本段落提取（纯英文约定）。
-    // 不配置这一项时 scaffold 会用 git 提交信息生成发布说明，而本仓库的
-    // 提交信息是中文，会违反约定。
+    // Publish maintained release notes instead of raw commit messages.
     changelog: "node scripts/release-notes.mjs",
   },
 
   build: {
+    makeManifest: { enable: false },
     assets: [
       "addon/**/*.*",
       "src/core/pdf/lib/*.json",
@@ -42,7 +39,6 @@ export default defineConfig({
       ...pkg.config,
       author: pkg.author,
       description: pkg.description,
-      homepage: pkg.homepage || "https://github.com/example/z-transplit",
       buildVersion: pkg.version,
       buildTime: "{{buildTime}}",
     },
@@ -50,13 +46,13 @@ export default defineConfig({
       prefix: pkg.config.prefsPrefix,
     },
     fluent: {
-      // The FTL sources already carry the `ztransplit-` prefix in their file
-      // names (addon/locale/en-US/ztransplit-preferences.ftl, …), and the
+      // The FTL sources already carry the `wenxianyidu-` prefix in their file
+      // names (addon/locale/en-US/wenxianyidu-preferences.ftl, …), and the
       // scaffold's default prefixLocaleFiles would turn them into
-      // `ztransplit-ztransplit-preferences.ftl`. Keep the names as authored —
+      // `wenxianyidu-wenxianyidu-preferences.ftl`. Keep the names as authored —
       // they are what src/utils/locale.ts registers. Message ids are still
       // prefixed (prefixFluentMessages stays at its default of true), which is
-      // why the .ftl sources write ids WITHOUT the leading `ztransplit-`.
+      // why the .ftl sources write ids WITHOUT the leading `wenxianyidu-`.
       prefixLocaleFiles: false,
     },
     esbuildOptions: [

@@ -74,7 +74,7 @@ describe("LazyTranslateQueue poll timer ownership", () => {
 
   it("stops the poll when every placeholder has disconnected", () => {
     const clearInterval = vi.fn();
-    const setInterval = vi.fn(() => 42);
+    const setInterval = vi.fn((_callback: () => void, _delay?: number) => 42);
     const queue = makeQueue(new Map([["1", { text: "a", placeholder: makeEl(false) }]]), {
       timerWindow: { setInterval, clearInterval },
     });

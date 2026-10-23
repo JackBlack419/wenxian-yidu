@@ -47,7 +47,7 @@ export function isWindows(): boolean {
     ]?.getService?.((Components as any).interfaces?.nsIXULRuntime);
     if (appinfo?.OS === "WINNT") return true;
   } catch (e) {
-    safeDebug("[Z-Transplit] platform: " + e);
+    safeDebug("[文献译读] platform: " + e);
     /* ignore */
   }
   return false;
@@ -64,7 +64,7 @@ export function isMac(): boolean {
     ]?.getService?.((Components as any).interfaces?.nsIXULRuntime);
     if (appinfo?.OS === "Darwin") return true;
   } catch (e) {
-    safeDebug("[Z-Transplit] platform: " + e);
+    safeDebug("[文献译读] platform: " + e);
     /* ignore */
   }
   return false;
@@ -91,7 +91,7 @@ function windowsDir(): string {
     const winD = dirSvc.get("WinD", (Components as any).interfaces.nsIFile);
     if (winD?.path) return winD.path;
   } catch (e) {
-    safeDebug("[Z-Transplit] platform: " + e);
+    safeDebug("[文献译读] platform: " + e);
     /* ignore */
   }
   return "C:\\Windows";
@@ -265,7 +265,7 @@ export async function readFontBytesForLang(lang: FontLang): Promise<Uint8Array |
         return new Uint8Array(await IOUtils.read(p));
       }
     } catch (e) {
-      safeDebug("[Z-Transplit] platform: " + e);
+      safeDebug("[文献译读] platform: " + e);
       /* try next candidate */
     }
   }

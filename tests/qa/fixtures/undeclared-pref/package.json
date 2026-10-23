@@ -2,10 +2,10 @@
   "name": "z-transplit",
   "version": "0.1.0",
   "config": {
-    "addonName": "Z-Transplit",
-    "addonID": "ztransplit@zotero.org",
-    "addonRef": "ztransplit",
-    "addonInstance": "ZTransplit",
-    "prefsPrefix": "extensions.zotero.ztransplit"
+    "addonName": "文献译读",
+    "addonID": "wenxianyidu@wenxianyidu.local",
+    "addonRef": "wenxianyidu",
+    "addonInstance": "WenxianYidu",
+    "prefsPrefix": "extensions.zotero.wenxianyidu"
   }
 }

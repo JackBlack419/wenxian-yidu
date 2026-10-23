@@ -1,0 +1,367 @@
+{
+  "version": 2,
+  "license": "CC0-1.0",
+  "provenance": "Self-authored scientific stress-test sentences; reference translations are review aids. Frozen revision 2, 2026-10-23.",
+  "cases": [
+    {
+      "id": "1",
+      "category": "terms",
+      "text": "The randomized controlled experiment included 240 samples.",
+      "referenceZh": "随机对照实验包括240个样本。"
+    },
+    {
+      "id": "2",
+      "category": "terms",
+      "text": "The confidence interval is wide because the sample is small.",
+      "referenceZh": "置信区间宽，因为样本小。"
+    },
+    {
+      "id": "3",
+      "category": "terms",
+      "text": "We used a watershed model to estimate river discharge.",
+      "referenceZh": "我们使用流域模型估计河流流量。"
+    },
+    {
+      "id": "4",
+      "category": "terms",
+      "text": "The false negative rate decreased after calibration.",
+      "referenceZh": "校准后假阴性率降低。"
+    },
+    {
+      "id": "5",
+      "category": "terms",
+      "text": "The attention mechanism assigns different weights to input tokens.",
+      "referenceZh": "注意力机制为输入词元赋予不同权重。"
+    },
+    {
+      "id": "6",
+      "category": "terms",
+      "text": "The Hessian matrix describes local curvature.",
+      "referenceZh": "海森矩阵描述局部曲率。"
+    },
+    {
+      "id": "7",
+      "category": "terms",
+      "text": "A blinded evaluator measured inter-rater agreement.",
+      "referenceZh": "不知分组的评估者测量了评估者间一致性。"
+    },
+    {
+      "id": "8",
+      "category": "terms",
+      "text": "The ablation study isolates the contribution of each component.",
+      "referenceZh": "消融研究分离了每个组件的贡献。"
+    },
+    {
+      "id": "9",
+      "category": "terms",
+      "text": "The null hypothesis was specified before data collection.",
+      "referenceZh": "零假设在收集数据前已指定。"
+    },
+    {
+      "id": "10",
+      "category": "terms",
+      "text": "The gradient vanishes near the stationary point.",
+      "referenceZh": "梯度在驻点附近消失。"
+    },
+    {
+      "id": "11",
+      "category": "negation",
+      "text": "The results do not support the hypothesis.",
+      "referenceZh": "结果不支持该假设。"
+    },
+    {
+      "id": "12",
+      "category": "negation",
+      "text": "No statistically significant difference was observed.",
+      "referenceZh": "未观察到统计显著差异。"
+    },
+    {
+      "id": "13",
+      "category": "negation",
+      "text": "The absence of evidence is not evidence of absence.",
+      "referenceZh": "缺乏证据并非不存在的证据。"
+    },
+    {
+      "id": "14",
+      "category": "negation",
+      "text": "The method is not insensitive to measurement noise.",
+      "referenceZh": "该方法并非对测量噪声不敏感。"
+    },
+    {
+      "id": "15",
+      "category": "negation",
+      "text": "Neither method eliminated the bias.",
+      "referenceZh": "两种方法均未消除偏差。"
+    },
+    {
+      "id": "16",
+      "category": "negation",
+      "text": "The association does not imply causation.",
+      "referenceZh": "该关联并不意味着因果关系。"
+    },
+    {
+      "id": "17",
+      "category": "negation",
+      "text": "We cannot rule out an effect smaller than 1 percent.",
+      "referenceZh": "我们不能排除小于百分之一的效应。"
+    },
+    {
+      "id": "18",
+      "category": "negation",
+      "text": "Not all observations were independent.",
+      "referenceZh": "并非所有观测都相互独立。"
+    },
+    {
+      "id": "19",
+      "category": "negation",
+      "text": "The model failed to detect the change, not to predict its direction.",
+      "referenceZh": "模型未能检测变化，而非未能预测变化方向。"
+    },
+    {
+      "id": "20",
+      "category": "negation",
+      "text": "The control group received neither intervention nor feedback.",
+      "referenceZh": "对照组既未接受干预也未接受反馈。"
+    },
+    {
+      "id": "21",
+      "category": "units",
+      "text": "The temperature increased from 20 °C to 25 °C.",
+      "referenceZh": "温度从20摄氏度升至25摄氏度。"
+    },
+    {
+      "id": "22",
+      "category": "units",
+      "text": "The sample was heated at 5 K per minute for 12 minutes.",
+      "referenceZh": "样本以每分钟5K的速率加热12分钟。"
+    },
+    {
+      "id": "23",
+      "category": "units",
+      "text": "The sensor consumed 3.2 mW at a voltage of 1.8 V.",
+      "referenceZh": "传感器在1.8V电压下消耗3.2mW。"
+    },
+    {
+      "id": "24",
+      "category": "units",
+      "text": "The error decreased by 12 percent, from 0.50 to 0.44.",
+      "referenceZh": "误差降低百分之十二，从0.50降至0.44。"
+    },
+    {
+      "id": "25",
+      "category": "units",
+      "text": "The increase was 5 percentage points rather than 5 percent.",
+      "referenceZh": "增幅为5个百分点，而非百分之五。"
+    },
+    {
+      "id": "26",
+      "category": "units",
+      "text": "The median latency was 8 ms and the maximum was 37 ms.",
+      "referenceZh": "延迟中位数8ms，最大值37ms。"
+    },
+    {
+      "id": "27",
+      "category": "units",
+      "text": "The concentration was 0.25 mol/L in a volume of 10 mL.",
+      "referenceZh": "浓度0.25mol/L，体积10mL。"
+    },
+    {
+      "id": "28",
+      "category": "units",
+      "text": "The pressure remained below 2.0 kPa throughout the test.",
+      "referenceZh": "整个测试中压力保持低于2.0kPa。"
+    },
+    {
+      "id": "29",
+      "category": "units",
+      "text": "The interval ranged from −0.8 to 1.2 units.",
+      "referenceZh": "区间为负0.8至1.2单位。"
+    },
+    {
+      "id": "30",
+      "category": "units",
+      "text": "The ratio was 1:4, corresponding to 20 percent of the total.",
+      "referenceZh": "比值为1:4，对应总量的百分之二十。"
+    },
+    {
+      "id": "31",
+      "category": "formula",
+      "text": "The energy is given by $E=mc^2$ for the stated mass.",
+      "referenceZh": "能量由公式给出。"
+    },
+    {
+      "id": "32",
+      "category": "formula",
+      "text": "When $x>0$, the function $f(x)=\\log x$ is increasing.",
+      "referenceZh": "当x大于零时该函数递增。"
+    },
+    {
+      "id": "33",
+      "category": "formula",
+      "text": "The gradient $\\nabla f$ and the Hessian $H$ are computed separately.",
+      "referenceZh": "梯度和海森矩阵分别计算。"
+    },
+    {
+      "id": "34",
+      "category": "formula",
+      "text": "The bound $\\epsilon<0.01$ holds only if the samples are independent.",
+      "referenceZh": "只有样本独立时该界才成立。"
+    },
+    {
+      "id": "35",
+      "category": "formula",
+      "text": "We minimize $L=\\sum_i (y_i-\\hat y_i)^2$ over the parameters.",
+      "referenceZh": "我们对参数最小化该损失。"
+    },
+    {
+      "id": "36",
+      "category": "formula",
+      "text": "The probability $P(A\\mid B)$ differs from $P(B\\mid A)$.",
+      "referenceZh": "两个条件概率不同。"
+    },
+    {
+      "id": "37",
+      "category": "formula",
+      "text": "The parameter {v0} is fixed while {v1} is optimized.",
+      "referenceZh": "一个参数固定，另一个被优化。"
+    },
+    {
+      "id": "38",
+      "category": "formula",
+      "text": "The integral $\\int_0^1 x^2 dx$ remains unchanged.",
+      "referenceZh": "该积分保持不变。"
+    },
+    {
+      "id": "39",
+      "category": "formula",
+      "text": "The inequality $a\\leq b$ does not imply $a=b$.",
+      "referenceZh": "小于等于不意味着相等。"
+    },
+    {
+      "id": "40",
+      "category": "formula",
+      "text": "For $n=10^3$, the complexity is $O(n\\log n)$.",
+      "referenceZh": "该n下复杂度由公式表示。"
+    },
+    {
+      "id": "41",
+      "category": "logic",
+      "text": "If the threshold is exceeded, the controller stops the experiment.",
+      "referenceZh": "若超过阈值，控制器停止实验。"
+    },
+    {
+      "id": "42",
+      "category": "logic",
+      "text": "The estimate is unbiased only if the sampling procedure is random.",
+      "referenceZh": "只有采样随机时估计才无偏。"
+    },
+    {
+      "id": "43",
+      "category": "logic",
+      "text": "Although accuracy improved, computational cost doubled.",
+      "referenceZh": "尽管准确率提高，计算成本翻倍。"
+    },
+    {
+      "id": "44",
+      "category": "logic",
+      "text": "The effect persisted unless the temperature exceeded 50 °C.",
+      "referenceZh": "除非温度超过50摄氏度，否则效应持续。"
+    },
+    {
+      "id": "45",
+      "category": "logic",
+      "text": "A larger sample reduces uncertainty but does not remove systematic bias.",
+      "referenceZh": "更大样本降低不确定性但不消除系统偏差。"
+    },
+    {
+      "id": "46",
+      "category": "logic",
+      "text": "The result is sufficient but not necessary for convergence.",
+      "referenceZh": "该结果为收敛的充分非必要条件。"
+    },
+    {
+      "id": "47",
+      "category": "logic",
+      "text": "We excluded samples collected after the instrument failed.",
+      "referenceZh": "我们排除了仪器故障后采集的样本。"
+    },
+    {
+      "id": "48",
+      "category": "logic",
+      "text": "The method generalizes provided that the input distribution remains stable.",
+      "referenceZh": "只要输入分布稳定，该方法就可泛化。"
+    },
+    {
+      "id": "49",
+      "category": "logic",
+      "text": "Doubling the input did not double the output.",
+      "referenceZh": "输入翻倍并未使输出翻倍。"
+    },
+    {
+      "id": "50",
+      "category": "logic",
+      "text": "The improvement may reflect selection bias rather than a causal effect.",
+      "referenceZh": "改善可能反映选择偏差而非因果效应。"
+    },
+    {
+      "id": "51",
+      "category": "completeness",
+      "text": "We recorded age, temperature, pressure, and elapsed time for every sample.",
+      "referenceZh": "我们为每个样本记录年龄温度压力和经过时间。"
+    },
+    {
+      "id": "52",
+      "category": "completeness",
+      "text": "Three instruments measured the signal independently and two detected an anomaly.",
+      "referenceZh": "三台仪器独立测量，两台检测到异常。"
+    },
+    {
+      "id": "53",
+      "category": "completeness",
+      "text": "The procedure consists of initialization, calibration, measurement, and validation.",
+      "referenceZh": "该过程包括初始化校准测量和验证。"
+    },
+    {
+      "id": "54",
+      "category": "completeness",
+      "text": "The baseline uses the same data, hardware, and stopping criterion as the proposed method.",
+      "referenceZh": "基线采用与所提方法相同的数据硬件和停止准则。"
+    },
+    {
+      "id": "55",
+      "category": "completeness",
+      "text": "We report both successful trials and failures to avoid survivorship bias.",
+      "referenceZh": "我们报告成功和失败试验以避免幸存者偏差。"
+    },
+    {
+      "id": "56",
+      "category": "completeness",
+      "text": "Missing values were marked explicitly and were not replaced by zero.",
+      "referenceZh": "缺失值明确标记且未被零替换。"
+    },
+    {
+      "id": "57",
+      "category": "completeness",
+      "text": "Each output retains the identifier of its corresponding input paragraph.",
+      "referenceZh": "每个输出保留对应输入段落的标识。"
+    },
+    {
+      "id": "58",
+      "category": "completeness",
+      "text": "The finding applies to the tested material and may not extend to other materials.",
+      "referenceZh": "发现适用于被测材料，可能不适用于其他材料。"
+    },
+    {
+      "id": "59",
+      "category": "completeness",
+      "text": "The authors released the code, parameters, and anonymized measurements.",
+      "referenceZh": "作者公开了代码参数和匿名测量数据。"
+    },
+    {
+      "id": "60",
+      "category": "completeness",
+      "text": "Before drawing conclusions, compare the estimate with its uncertainty and the original observations.",
+      "referenceZh": "下结论前比较估计值不确定性与原始观测。"
+    }
+  ]
+}

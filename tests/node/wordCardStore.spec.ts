@@ -36,7 +36,7 @@ function card(word: string, meaning: string) {
 let tmp: string;
 
 beforeEach(() => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ztransplit-wordcards-"));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wenxianyidu-wordcards-"));
   installIOUTilsShim();
   setWordCardDirForTests(tmp);
 });
@@ -154,7 +154,7 @@ describe("wordCardStore persistence", () => {
   it("skips corrupt files on load", async () => {
     await upsertWordCard({ word: "good", targetLang: "zh-CN", content: card("good", "好") });
     await upsertWordCard({ word: "bad", targetLang: "zh-CN", content: card("bad", "坏") });
-    const root = path.join(tmp, "ztransplit/word-cards/v1");
+    const root = path.join(tmp, "wenxianyidu/word-cards/v1");
     for (const bucket of fs.readdirSync(root)) {
       for (const file of fs.readdirSync(path.join(root, bucket))) {
         const filePath = path.join(root, bucket, file);

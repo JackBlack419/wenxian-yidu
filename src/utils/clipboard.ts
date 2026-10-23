@@ -26,7 +26,7 @@ export async function copyText(doc: Document, text: string): Promise<string> {
       return "";
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] clipboard: Zotero helper failed: " + e);
+    safeDebug("[文献译读] clipboard: Zotero helper failed: " + e);
   }
 
   try {
@@ -36,7 +36,7 @@ export async function copyText(doc: Document, text: string): Promise<string> {
       return "";
     }
   } catch (e) {
-    safeDebug("[Z-Transplit] clipboard: navigator.clipboard failed: " + e);
+    safeDebug("[文献译读] clipboard: navigator.clipboard failed: " + e);
   }
 
   try {

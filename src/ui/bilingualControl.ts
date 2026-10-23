@@ -25,6 +25,7 @@ import { getPref, getPrefDynamic, setPref } from "../utils/prefs";
 import { createAbortController } from "../utils/abort";
 import { resolveCurrentReader } from "./translatePane";
 import { probeReaderCapabilities } from "../core/capabilities";
+import { ensureEngineAvailable } from "../core/translation/engineSelection";
 import {
   startBilingualSession,
   stopBilingualSession,
@@ -48,7 +49,7 @@ import {
   engineCacheIdentity,
 } from "../core/translation/translationEngines";
 
-const CLS = "ztransplit-bc";
+const CLS = "wenxianyidu-bc";
 
 interface ControlState {
   doc: Document;
@@ -88,6 +89,7 @@ const mounted = new WeakMap<HTMLElement, { destroy(): void }>();
 
 /** The one read-aloud playback (module scope: one voice at a time). */
 let raController: ReadAloudController | null = null;
+let raOwner: ControlState | null = null;
 let raSource: "original" | "translation" | null = null;
 /**
  * Monotonic token guarding the async start flow: bumped on every teardown so
@@ -229,14 +231,15 @@ async function startSession(
   itemID?: number,
   requestedMode?: "interleave" | "transOnly",
 ): Promise<void> {
-  safeDebug("[Z-Transplit] bilingualControl: startSession itemID=" + itemID);
+  safeDebug("[文献译读] bilingualControl: startSession itemID=" + itemID);
   state.setStatus(getString("bilingual-sdt-loading"));
+  if (!await ensureEngineAvailable()) { state.setStatus(""); return; }
   let reader = resolveCurrentReader(state.doc, itemID);
   for (let attempt = 0; !reader && attempt < 3; attempt++) {
     await new Promise((r) => setTimeout(r, 1200));
     reader = resolveCurrentReader(state.doc, itemID);
   }
-  safeDebug("[Z-Transplit] bilingualControl: reader resolved=" + !!reader);
+  safeDebug("[文献译读] bilingualControl: reader resolved=" + !!reader);
   if (!reader) {
     state.setStatus(getString("pane-translate-no-reader"));
     return;
@@ -257,7 +260,9 @@ async function startSession(
 
   const handle = await startBilingualSession({
     reader,
-    itemID,
+    // ItemPaneManager may supply the parent bibliographic item. Sessions are
+    // always keyed by the PDF attachment actually opened in this reader.
+    itemID: reader.itemID ?? itemID,
     mode: requestedMode ?? storedDefaultMode(),
     targetLanguage,
     cacheIdentity,
@@ -290,6 +295,16 @@ async function startSession(
     return;
   }
 
+  // A scanned PDF (or one with a broken text layer) yields a session with zero
+  // blocks: the reader switches into reading mode and then nothing happens,
+  // which reads as a hang. Say what is wrong and how to fix it instead.
+  if (handle.stats().total === 0) {
+    await stopBilingualSession();
+    state.setActive(false);
+    state.setStatus(getString("bilingual-no-text"));
+    return;
+  }
+
   if (requestedMode) {
     setPref("reader.bilingual.defaultMode", requestedMode);
   }
@@ -303,12 +318,15 @@ async function stopSession(state?: ControlState): Promise<void> {
 // ── read-aloud wiring ───────────────────────────────────────────────────────
 
 function stopReadAloudUI(state?: ControlState): void {
+  const previousOwner = raOwner;
+  raOwner = null;
   raGeneration++;
   const c = raController;
   raController = null;
   raSource = null;
   c?.stop();
   state?.setReadAloudPlaying(false);
+  if (previousOwner && previousOwner !== state) previousOwner.setReadAloudPlaying(false);
   clearSegmentHighlight();
 }
 
@@ -317,11 +335,12 @@ function startReadAloud(
   source: "original" | "translation",
   itemID?: number,
 ): void {
-  safeDebug("[Z-Transplit] bilingualControl: readAloud source=" + source);
+  safeDebug("[文献译读] bilingualControl: readAloud source=" + source);
   const running = raSource;
+  const sameOwner = raOwner === state;
   if (running) {
     stopReadAloudUI(state);
-    if (running === source) return;
+    if (running === source && sameOwner) return;
   }
   const reader = resolveCurrentReader(state.doc);
   if (!reader) {
@@ -342,6 +361,7 @@ function startReadAloud(
     state.setReadAloudPlaying(!!raController);
   };
   raSource = source;
+  raOwner = state;
   const gen = raGeneration;
 
   if (source === "original") {
@@ -352,7 +372,7 @@ function startReadAloud(
       try {
         segments = (await buildPdfSegments(reader, start)).segments;
       } catch (e) {
-        safeDebug("[Z-Transplit] bilingualControl readAloud build: " + e);
+        safeDebug("[文献译读] bilingualControl readAloud build: " + e);
         if (gen !== raGeneration) return;
         raSource = null;
         state.setStatus(getString("readaloud-start-failed", { error: toErrorMessage(e) }));
@@ -426,8 +446,8 @@ function startReadAloud(
 
 // ── reader toolbar button ───────────────────────────────────────────────────
 
-const TOOLBAR_BUTTON_CLASS = "ztransplit-bc-toolbar";
-const TOOLBAR_STYLE_ID = "ztransplit-bc-toolbar-style";
+const TOOLBAR_BUTTON_CLASS = "wenxianyidu-bc-toolbar";
+const TOOLBAR_STYLE_ID = "wenxianyidu-bc-toolbar-style";
 
 const TOOLBAR_CSS = `
 .${TOOLBAR_BUTTON_CLASS} {
@@ -521,7 +541,7 @@ export function registerBilingualReaderToolbar(): void {
       if (!doc || typeof append !== "function") return;
       append(buildReaderToolbarButton(doc));
     } catch (e) {
-      safeDebug("[Z-Transplit] bilingualControl: reader toolbar button build failed: " + e);
+      safeDebug("[文献译读] bilingualControl: reader toolbar button build failed: " + e);
     }
   };
   Reader.registerEventListener("renderToolbar", readerToolbarHandler, pluginID);
@@ -534,7 +554,7 @@ export function unregisterBilingualReaderToolbar(): void {
     try {
       Reader.unregisterEventListener("renderToolbar", readerToolbarHandler);
     } catch (e) {
-      safeDebug("[Z-Transplit] bilingualControl: unregister toolbar failed: " + e);
+      safeDebug("[文献译读] bilingualControl: unregister toolbar failed: " + e);
     }
     readerToolbarHandler = null;
   }
@@ -547,7 +567,7 @@ function addonID(): string {
   } catch {
     /* no addon global (node) — fall through to the config import */
   }
-  return (globalThis as any).addon?.data?.config?.addonID ?? "ztransplit@zotero.org";
+  return (globalThis as any).addon?.data?.config?.addonID ?? "wenxianyidu@wenxianyidu.local";
 }
 
 // ── mount / destroy ─────────────────────────────────────────────────────────
@@ -641,15 +661,27 @@ export function mountBilingualControl(options: {
     },
   };
 
-  function sourceHasTranslation(): boolean {
+  function sessionForPane() {
     const session = getActiveSession();
+    if (!session) return null;
+    const reader = resolveCurrentReader(doc, options.itemID);
+    let expected = options.itemID ?? reader?.itemID;
+    if (reader?.itemID !== undefined && options.itemID !== undefined) {
+      const parent = (globalThis as any).Zotero?.Items?.get?.(reader.itemID)?.parentItemID;
+      if (reader.itemID === options.itemID || parent === options.itemID) expected = reader.itemID;
+    }
+    return expected !== undefined && session.itemID === expected ? session : null;
+  }
+
+  function sourceHasTranslation(): boolean {
+    const session = sessionForPane();
     return !!session && session.handle.translatedReadSegments().length > 0;
   }
 
   function refreshTranslationButton(): void {
     const b = state.readAloudButtons;
     if (!b) return;
-    b.translation.disabled = !getActiveSession() || !sourceHasTranslation();
+    b.translation.disabled = !sessionForPane() || !sourceHasTranslation();
   }
 
   let starting = false;
@@ -668,7 +700,7 @@ export function mountBilingualControl(options: {
     try {
       await startSession(state, options.itemID, requestedMode);
     } catch (e) {
-      safeDebug("[Z-Transplit] bilingualControl toggle: " + e);
+      safeDebug("[文献译读] bilingualControl toggle: " + e);
       state.setActive(false);
       state.setStatus(getString("bilingual-sdt-unpack-failed", {
         error: toErrorMessage(e),
@@ -680,7 +712,7 @@ export function mountBilingualControl(options: {
 
   toggle.addEventListener("click", () => {
     void (async () => {
-      if (getActiveSession()) {
+      if (sessionForPane()) {
         await stopSession(state);
         return;
       }
@@ -703,14 +735,15 @@ export function mountBilingualControl(options: {
       b.insertBefore(icon, b.firstChild);
     }
     b.addEventListener("click", () => {
-      if (getActiveSession()) {
+      const session = sessionForPane();
+      if (session) {
         try {
-          getActiveSession()!.handle.setMode(mode);
-          const actual = getActiveSession()!.handle.getMode();
+          session.handle.setMode(mode);
+          const actual = session.handle.getMode();
           state.setMode(actual);
           setPref("reader.bilingual.defaultMode", actual);
         } catch (e) {
-          safeDebug("[Z-Transplit] bilingualControl setMode: " + e);
+          safeDebug("[文献译读] bilingualControl setMode: " + e);
         }
         return;
       }
@@ -796,15 +829,15 @@ export function mountBilingualControl(options: {
     state.readAloudButtons = readAloudButtons;
     root.appendChild(raBox);
   } catch (e) {
-    safeDebug("[Z-Transplit] bilingualControl read-aloud row: " + e);
+    safeDebug("[文献译读] bilingualControl read-aloud row: " + e);
   }
 
   root.appendChild(controlsBox);
   root.appendChild(status);
   body.appendChild(root);
 
-  const unsubscribe = onSessionChange(() => {
-    const session = getActiveSession();
+  const syncSessionState = () => {
+    const session = sessionForPane();
     if (session) {
       state.setActive(true);
       state.setMode(session.handle.getMode());
@@ -812,14 +845,18 @@ export function mountBilingualControl(options: {
       state.setActive(false);
     }
     state.refreshReadAloudButtons();
-  });
+  };
+  const unsubscribe = onSessionChange(syncSessionState);
+  syncSessionState();
 
   const handle: BilingualControlHandle = {
     destroy() {
       mounted.delete(body);
       unsubscribe();
-      stopReadAloudUI(state);
-      void stopBilingualSession();
+      // The control can be remounted when switching item panes. The reading
+      // session belongs to its reader and is disposed centrally at shutdown.
+      // Removing another document's control must never stop that session.
+      if (raOwner === state) stopReadAloudUI(state);
       try {
         root.remove();
       } catch {

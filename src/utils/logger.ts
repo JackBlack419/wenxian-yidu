@@ -46,9 +46,9 @@ export function info(message: string): void {
 }
 
 export function warn(message: string): void {
-  rawDebug(`[Z-Transplit][warn] ${message}`);
+  rawDebug(`[文献译读][warn] ${message}`);
 }
 
 export function error(message: string): void {
-  rawDebug(`[Z-Transplit][error] ${message}`, 2);
+  rawDebug(`[文献译读][error] ${message}`, 2);
 }

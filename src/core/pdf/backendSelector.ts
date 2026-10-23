@@ -70,7 +70,7 @@ export async function isBackendAvailable(): Promise<boolean> {
     const health = await checkHealth();
     return health.healthy;
   } catch (e) {
-    safeDebug("[Z-Transplit] backendSelector: " + e);
+    safeDebug("[文献译读] backendSelector: " + e);
     return false;
   }
 }
@@ -114,7 +114,7 @@ async function tryOpenDataLoader(
       ? (m: string) => safeDebug(m)
       : (m: string) => console.debug(m);
   dbg(
-    `[Z-Transplit ODL] tryOpenDataLoader: health=${health.healthy} error="${health.error ?? ""}"`,
+    `[文献译读 ODL] tryOpenDataLoader: health=${health.healthy} error="${health.error ?? ""}"`,
   );
   if (!health.healthy) {
     throw new PdfParseError(

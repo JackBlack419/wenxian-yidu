@@ -23,6 +23,8 @@ import { parseJsonFromMarkdown } from "../../utils/json";
 import { getString } from "../../utils/locale";
 import { abortSignalTimeout } from "../../utils/abort";
 import { retryAfterFromHeaders } from "../../utils/rateLimit";
+import { combineSignal } from "../translation/providerAdapters";
+import { redactTranslationError } from "../../utils/credentials";
 
 export interface OpenAICompatMessage {
   role: "system" | "user" | "assistant";
@@ -65,7 +67,7 @@ export interface OpenAICompatClientConfig {
   /** Model used when a request does not override it; "" = server default. */
   defaultModel?: string;
   /**
-   * Fluent message id (no `ztransplit-` prefix) reported when the endpoint
+   * Fluent message id (no `wenxianyidu-` prefix) reported when the endpoint
    * returns an empty completion. Defaults to the custom engine's message;
    * callers that are not the custom engine pass their own key so the error
    * names the engine the user actually selected.
@@ -109,11 +111,19 @@ function sleep(ms: number): Promise<void> {
  * /v1/chat/completions appended.
  */
 export function normalizeChatCompletionsUrl(apiUrl: string): string {
-  let baseUrl = apiUrl.replace(/\/+$/, "");
-  if (!baseUrl.endsWith("/chat/completions")) {
-    baseUrl = baseUrl.replace(/\/v1\/?$/, "") + "/v1/chat/completions";
+  const endpoint = new URL(apiUrl);
+  if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname))) {
+    throw new Error("远程 AI 接口必须使用 HTTPS；本机模型可使用 localhost HTTP。");
   }
-  return baseUrl;
+  if (endpoint.username || endpoint.password) throw new Error("请将密钥填写在 API Key 字段，不要放入接口地址。");
+  if ([...endpoint.searchParams.keys()].some(key => /^(?:key|api[-_]?key|token|access[-_]?token|secret|password|sign)$/i.test(key))) {
+    throw new Error("请将密钥填写在 API Key 字段，不要放入接口地址。");
+  }
+  endpoint.hash = "";
+  let pathname = endpoint.pathname.replace(/\/+$/, "");
+  if (!pathname.endsWith("/chat/completions")) pathname = pathname.replace(/\/v1$/, "") + "/v1/chat/completions";
+  endpoint.pathname = pathname;
+  return endpoint.href;
 }
 
 function toUsage(raw: any): OpenAICompatUsage | undefined {
@@ -159,9 +169,7 @@ export function createOpenAICompatClient(
       body.temperature = request.temperature;
     if (request.responseFormat) body.response_format = request.responseFormat;
 
-    const signal =
-      request.signal ??
-      (request.timeoutMs ? abortSignalTimeout(request.timeoutMs) : undefined);
+    const signal = combineSignal(request.signal, request.timeoutMs || 120000);
 
     const resp = await fetch(url, {
       method: "POST",
@@ -170,16 +178,36 @@ export function createOpenAICompatClient(
       signal,
     });
     if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
+      const text = (await resp.text().catch(() => "")).trim();
+      let detail = resp.statusText || "Request failed";
+      // Preserve useful provider diagnostics, but never show an HTML error
+      // page or a credential echoed by a gateway. Some compatible endpoints
+      // return plain text, others use the standard error.message envelope.
+      if (text && !text.startsWith("<")) {
+        try {
+          const data = JSON.parse(text);
+          const message = data?.error?.message ?? data?.message;
+          if (typeof message === "string" && message.trim()) detail = message;
+        } catch {
+          detail = text;
+        }
+      }
+      if (config.apiKey) detail = detail.split(config.apiKey).join("[redacted]");
+      detail = redactTranslationError(detail);
       // status 与 retryAfterSec 供引擎层的限流退避识别 429（utils/rateLimit.ts）。
       const e = new Error(
-        `HTTP ${resp.status}: ${text || resp.statusText}`,
+        `HTTP ${resp.status}: ${detail}`,
       ) as Error & { status?: number; retryAfterSec?: number | null };
       e.status = resp.status;
       e.retryAfterSec = retryAfterFromHeaders(resp.headers);
       throw e;
     }
     const data = (await resp.json()) as any;
+    const finishReason = data?.choices?.[0]?.finish_reason;
+    if (finishReason === "length" || finishReason === "max_tokens") {
+      throw new Error("模型输出被截断，译文未保存；请缩短原文或更换模型后重试。");
+    }
+    if (finishReason === "content_filter") throw new Error("模型服务未提供完整译文，请更换引擎后重试。");
     const content = data?.choices?.[0]?.message?.content;
     if (!content || typeof content !== "string") {
       // Reasoning-style models spend completion tokens on hidden thinking that
@@ -234,6 +262,7 @@ export function createOpenAICompatClient(
         }
         return { data: parsed as T, usage: result.usage };
       } catch (e) {
+        if (request.signal?.aborted || (e as any)?.name === "AbortError") throw e;
         lastError = e;
         if (attempt === 0) await sleep(RETRY_BACKOFF_MS);
       }

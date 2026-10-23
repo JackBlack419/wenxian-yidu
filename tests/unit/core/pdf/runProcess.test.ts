@@ -872,8 +872,8 @@ describe("formatJavaExitError → classifyOdlRuntimeError → friendlyOdlError",
     expect(err.message).toContain("不存在 等.pdf"); // 真实原因保留
     // friendlyOdlError 不把它路由到缺 Java 或组件缺失文案
     const friendly = friendlyOdlError(summary);
-    expect(friendly).not.toBe("ztransplit-odl-error-java-missing");
-    expect(friendly).not.toBe("ztransplit-odl-error-jar-missing");
+    expect(friendly).not.toBe("wenxianyidu-odl-error-java-missing");
+    expect(friendly).not.toBe("wenxianyidu-odl-error-jar-missing");
     expect(friendly.startsWith("java exited with code 1")).toBe(true);
     expect(isJavaMissingCause(err)).toBe(false);
   });

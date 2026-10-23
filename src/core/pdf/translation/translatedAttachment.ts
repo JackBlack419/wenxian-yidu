@@ -89,15 +89,91 @@ function addDcRelation(item: any, uri: string): void {
   item.setRelations(relations);
 }
 
-export async function importTranslatedBytes(
-  bytes: Uint8Array,
+/**
+ * 找出这篇源 PDF 之前生成的译文附件（用于「重译时替换旧的」）。
+ *
+ * 背景（实机 2026-10-22）：每次重新翻译都会再导入一个同名附件，用户重跑几次
+ * 后同一条目下堆出 6 个「Translated (zh-CN) · … · 部分译文（5 段失败）」，删掉
+ * 一个、下一次运行又补一个，看起来像「删了反而变多」。
+ *
+ * 只认我们自己的产物：标题符合 `Translated (…)` / `译文 (…)`，并且**带有「译文」
+ * 标签或与源条目存在 dc:relation 关联**。用户改过名的、手工加的 PDF 不会被误删。
+ */
+export function findSupersededTranslations(
+  sourceItem: any,
+  parentItemID: number | null | undefined,
+  keepItemID?: number,
+): any[] {
+  try {
+    const Z = (globalThis as any).Zotero;
+    const titleRe = /^(?:译文|Translated)\s*\(/i;
+    const candidates: any[] = [];
+    if (parentItemID != null) {
+      const parent = Z?.Items?.get?.(parentItemID);
+      for (const id of parent?.getAttachments?.() ?? []) {
+        const att = Z?.Items?.get?.(id);
+        if (att && !att.deleted) candidates.push(att);
+      }
+    }
+    const relation = sourceItem?.getRelations?.()?.["dc:relation"];
+    if (relation) {
+      // 顶层附件的译文没有父条目，只能靠反向关联找到。
+      const list: string[] = Array.isArray(relation) ? relation : [String(relation)];
+      for (const uri of list) {
+        const id = Number(String(uri).split("/").pop());
+        const att = Number.isInteger(id) ? Z?.Items?.get?.(id) : null;
+        if (att && !att.deleted) candidates.push(att);
+      }
+    }
+    const tag = getString("translated-tag");
+    const seen = new Set<number>();
+    return candidates.filter((att: any) => {
+      if (!att?.isAttachment?.()) return false;
+      if (att.attachmentContentType !== "application/pdf") return false;
+      if (!titleRe.test(att.getField?.("title") || "")) return false;
+      const ours =
+        (tag && (att.getTags?.() ?? []).some((t: any) => t?.tag === tag)) ||
+        Boolean(relation);
+      if (!ours) return false;
+      if (att.id === keepItemID) return false;
+      if (seen.has(att.id)) return false;
+      seen.add(att.id);
+      return true;
+    });
+  } catch (e) {
+    safeDebug("[文献译读] translatedAttachment: superseded lookup failed: " + e);
+    return [];
+  }
+}
+
+/** 把被新译文取代的旧附件放进回收站（可恢复，不是永久删除）。 */
+export async function trashSupersededTranslations(
+  sourceItem: any,
+  parentItemID: number | null | undefined,
+  keepItemID: number,
+): Promise<number> {
+  const stale = findSupersededTranslations(sourceItem, parentItemID, keepItemID);
+  let removed = 0;
+  for (const att of stale) {
+    try {
+      att.deleted = true;
+      await att.saveTx();
+      removed++;
+    } catch (e) {
+      safeDebug("[文献译读] translatedAttachment: could not trash old translation: " + e);
+    }
+  }
+  return removed;
+}
+
+export async function importTranslatedBytes(bytes: Uint8Array,
   parentItemID: number | null | undefined,
   title: string,
   sourceItem?: any,
 ): Promise<any> {
   const tmpDir = (Zotero as any).getTempDirectory();
   const tmpFile = tmpDir.clone();
-  tmpFile.append(`ztransplit-translated-${Date.now()}.pdf`);
+  tmpFile.append(`wenxianyidu-translated-${Date.now()}.pdf`);
 
   try {
     const IOUtils = (globalThis as any).IOUtils;
@@ -139,7 +215,7 @@ export async function importTranslatedBytes(
       await attachment.saveTx();
       if (sourceURI) await sourceItem.saveTx();
     } catch (e) {
-      safeDebug("[Z-Transplit] translatedAttachment: " + e);
+      safeDebug("[文献译读] translatedAttachment: " + e);
       /* best-effort — title/tag/relation are cosmetic */
     }
 
@@ -148,7 +224,7 @@ export async function importTranslatedBytes(
     try {
       if (tmpFile.exists()) tmpFile.remove(false);
     } catch (e) {
-      safeDebug("[Z-Transplit] translatedAttachment: " + e);
+      safeDebug("[文献译读] translatedAttachment: " + e);
       /* best-effort cleanup */
     }
   }

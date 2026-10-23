@@ -10,10 +10,18 @@ declare namespace _ZoteroTypes {
       "translate.enabled": boolean;
       "translate.auto": boolean;
       "translate.maxChars": number;
+      "ui.translation.mode": string;
+      "ui.translation.width": number;
       "region": string;
       "prefSchemaVersion": number;
       "translate.batchMaxTokens": number;
       "translate.engineType": string;
+      "translate.engineConfirmed": boolean;
+      "translate.youdaoOfficial.appKey": string;
+      "translate.youdaoOfficial.appSecret": string;
+      "translate.niutrans.apiKey": string;
+      "translate.niutrans.apiUrl": string;
+      "translate.credentialsRevision": string;
       "translate.google.apiKey": string;
       "translate.bing.apiKey": string;
       "translate.bing.region": string;

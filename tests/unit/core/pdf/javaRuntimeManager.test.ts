@@ -15,13 +15,23 @@
  *   7. getJavaStatus：坏 JRE 被清掉后才回退系统 Java。
  *   8. macOS 布局：Contents/Home/bin/java 也能被找到并完成安装。
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHash } from "node:crypto";
 import {
   downloadJRE,
   getJavaStatus,
   getManagedJavaExe,
 } from "../../../../src/core/pdf/JavaRuntimeManager";
+
+// Process I/O remains a host boundary; exercise the real staged installer.
+vi.mock("../../../../src/core/pdf/OpenDataLoaderPdfClient", () => ({
+  runProcess: async (exe: string, args: string[]) => {
+    const command = [exe, ...args].map(s => `"${s}"`).join(" ");
+    host.dispatched.push(command);
+    const result = dispatchCommand(command);
+    return { exitCode: result.exit, stdout: "", stderr: result.stderr, timedOut: false };
+  },
+}));
 
 // ─── 内存文件系统（IOUtils 语义子集）─────────────────────────────
 
@@ -131,7 +141,7 @@ class FakeFS {
 
 const SEP = "\\";
 const DATA_DIR = "D:\\ZoteroData";
-const ZTSPLIT = DATA_DIR + SEP + "ztransplit";
+const ZTSPLIT = DATA_DIR + SEP + "wenxianyidu";
 const RUNTIME_DIR = ZTSPLIT + SEP + "java-runtime";
 const STAGING_DIR = ZTSPLIT + SEP + "java-runtime.staging";
 const ARCHIVE_ZIP = ZTSPLIT + SEP + "java-runtime.download.zip";
@@ -337,6 +347,7 @@ function buildGlobals(): void {
     "nsITimer",
     "nsIXULRuntime",
     "nsIPropertyBag2",
+    "nsIZipReader",
   ]) {
     ids[name] = { name, equals: (o) => o === ids[name] };
   }
@@ -344,6 +355,16 @@ function buildGlobals(): void {
   const ComponentsStub: any = {
     classes: {
       "@mozilla.org/file/local;1": { createInstance: () => makeFakeFile() },
+      "@mozilla.org/libjar/zip-reader;1": { createInstance: () => ({
+        open() { if (takeNext(h.tarExits)) throw new Error("java-error-extract-failed"); },
+        findEntries() {
+          const names = ["jdk-17.0.20.1+1-jre/bin/java.exe", "jdk-17.0.20.1+1-jre/release"];
+          let index = 0;
+          return { hasMore: () => index < names.length, getNext: () => names[index++] };
+        },
+        extract(_name: string, file: any) { h.fs.write(file.path, new Uint8Array([1])); },
+        close() {},
+      }) },
       "@mozilla.org/process/util;1": { createInstance: () => makeFakeProcess() },
       "@mozilla.org/process/environment;1": {
         getService: () => ({ get: () => "" }),
@@ -429,8 +450,8 @@ describe("JavaRuntimeManager：JRE 托管安装的中断安全", () => {
   });
 
   it("解压中断后重试：校验通过的安装包被保留，重试不再下载（中断继续）", async () => {
-    // 第一次：下载成功、解压失败（tar 与 PowerShell 兜底都失败，模拟中断）
-    host.tarExits = [1, 1];
+    // 第一次：下载成功、解压失败（原生 ZIP 解压失败，模拟中断）
+    host.tarExits = [1];
     await expect(downloadJRE(17)).rejects.toThrow(/java-error-extract-failed/);
 
     // 安装包与校验记录保留，暂存目录被清理，正式目录未产生
@@ -474,7 +495,7 @@ describe("JavaRuntimeManager：JRE 托管安装的中断安全", () => {
 
   it("上游发布新补丁：本地旧包哈希不再匹配上游，作废并重新下载", async () => {
     // 先制造一次「下载成功、解压失败」的缓存（对应 17.0.20.1）
-    host.tarExits = [1, 1];
+    host.tarExits = [1];
     await expect(downloadJRE(17)).rejects.toThrow(/java-error-extract-failed/);
     expect(host.httpCalls.filter((u) => u === RELEASE_1.link)).toHaveLength(1);
 
@@ -495,7 +516,7 @@ describe("JavaRuntimeManager：JRE 托管安装的中断安全", () => {
 
   it("断网（元数据接口不可达）但本地包完好：复用本地包完成安装", async () => {
     // 制造「下载成功、解压失败」的缓存
-    host.tarExits = [1, 1];
+    host.tarExits = [1];
     await expect(downloadJRE(17)).rejects.toThrow(/java-error-extract-failed/);
 
     // 断网：assets 接口失败；此时应信任本地记录的校验和

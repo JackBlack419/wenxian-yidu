@@ -15,17 +15,18 @@
  *   node scripts/qa/real-machine.mjs send <action> [arg]   # send a command
  *   node scripts/qa/real-machine.mjs shoot                 # close Zotero
  */
-import { spawn, execSync } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
+import { ownsInstance, assertInsideQa } from "./instance-safety.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const QA_ROOT = "D:\\zt-qa";
-const PROBE_ID = "ztransplit-qa-probe@zotero.org";
-const ADDON_ID = "ztransplit@zotero.org";
-const ZOTERO_BIN = process.env.ZOTERO_BIN || "D:\\zotero10\\zotero.exe";
+const QA_ROOT = path.join(ROOT, ".qa");
+const PROBE_ID = "wenxianyidu-qa-probe@zotero.org";
+const ADDON_ID = "wenxianyidu@wenxianyidu.local";
+const ZOTERO_BIN = process.env.ZOTERO_BIN || "D:\\software\\Zetero\\zotero.exe";
 
 const cmdDir = QA_ROOT;
 const readyFile = path.join(cmdDir, "probe-ready.json");
@@ -46,43 +47,23 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function stopZotero() {
-  try {
-    execSync("taskkill /f /im zotero.exe", { stdio: "ignore" });
-  } catch {
-    /* not running */
-  }
-}
-
-/** Kill only the QA instance(s): every Zotero whose command line points at
- *  the QA profile/data dir. A tree-kill from the recorded root pid misses
- *  content processes that were (re)spawned after the root died. */
+/** Fail closed: only the exact executable plus isolated profile may be stopped. */
 function stopQaZotero() {
-  try {
-    const ps =
-      `Get-CimInstance Win32_Process -Filter "name='zotero.exe'" | ` +
-      `Where-Object { $_.CommandLine -like '*zt-qa*' } | ForEach-Object { $_.ProcessId }`;
-    const out = execSync(
-      `powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`,
-      { encoding: "utf8" },
-    );
-    for (const token of out.split(/\s+/)) {
-      const pid = parseInt(token, 10);
-      if (pid) {
-        try {
-          execSync(`taskkill /f /t /pid ${pid}`, { stdio: "ignore" });
-        } catch {
-          /* already gone */
-        }
-      }
-    }
-  } catch {
-    /* no matching process */
+  const ps = `$ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; @(Get-CimInstance Win32_Process -Filter "name='zotero.exe'" | Select-Object ProcessId,ExecutablePath,CommandLine,CreationDate) | ConvertTo-Json -Compress`;
+  const encoded = Buffer.from(ps,"utf16le").toString("base64");
+  const out = execFileSync("powershell.exe", ["-NoProfile","-EncodedCommand",encoded], {encoding:"utf8", timeout:15000, windowsHide:true});
+  const parsed = out.trim() ? JSON.parse(out) : [];
+  const rows = Array.isArray(parsed) ? parsed : [parsed];
+  for (const row of rows) {
+    if (!ownsInstance(row, ZOTERO_BIN, profileDir)) continue;
+    try { execFileSync("taskkill.exe", ["/f","/t","/pid",String(row.ProcessId)], {stdio:"ignore", windowsHide:true, timeout:15000}); }
+    catch (error) { log("QA instance termination returned:", error.status); }
   }
   rmIfExists(pidFile);
 }
 
 function rmIfExists(f) {
+  assertInsideQa(QA_ROOT, f);
   // A force-killed Zotero can hold handles for a moment; retry instead of
   // silently leaving a stale profile (a stale extensions.json skips the addon).
   for (let i = 0; i < 10; i++) {
@@ -118,6 +99,7 @@ function writeProxyAddon(id, sourceDir) {
 /** Directory install: a real copy at extensions/<id>/ (as a user install is). */
 function writeDirAddon(id, sourceDir) {
   const dest = path.join(extensionsDir, id);
+  assertInsideQa(QA_ROOT, dest);
   fs.mkdirSync(extensionsDir, { recursive: true });
   fs.rmSync(dest, { recursive: true, force: true });
   fs.cpSync(sourceDir, dest, { recursive: true });
@@ -132,19 +114,29 @@ function writeDirAddon(id, sourceDir) {
  */
 function buildProbeCopy() {
   const src = path.join(ROOT, ".scaffold", "build", "addon");
-  const dest = "D:\\zt-qa\\addon-under-test";
+  const dest = path.join(QA_ROOT, "addon-under-test");
+  assertInsideQa(QA_ROOT, dest);
   fs.rmSync(dest, { recursive: true, force: true });
   fs.cpSync(src, dest, { recursive: true });
   fs.copyFileSync(
     path.join(ROOT, "scripts", "qa", "driver2", "probe.js"),
     path.join(dest, "content", "scripts", "probe.js"),
   );
+  // Controlled progress states for screenshots: modify ONLY the QA copy.
+  const bundlePath = path.join(dest, "content", "scripts", "wenxianyidu.js");
+  const bundle = fs.readFileSync(bundlePath, "utf8");
+  if (bundle.includes("function updateOfflinePreparationStatus(")) {
+    const closing = bundle.lastIndexOf("\n})();");
+    const instrumented = closing < 0 ? bundle : bundle.slice(0, closing) + "\n  Zotero.WenxianYidu.offline.__qaProgress023 = updateOfflinePreparationStatus;" + bundle.slice(closing);
+    if (!instrumented.includes("offline.__qaProgress023 =")) throw Error("Progress QA hook could not be installed");
+    fs.writeFileSync(bundlePath, instrumented, "utf8");
+  }
   // Patch the bootstrap: after the addon's own startup, load the probe.
   const bootPath = path.join(dest, "bootstrap.js");
   const boot = fs.readFileSync(bootPath, "utf8");
   const patched = boot.replace(
-    /await Zotero\.ZTransplit\.hooks\.onStartup\(\);/,
-    `await Zotero.ZTransplit.hooks.onStartup();\n  try {\n    const probe = ctx._probe = {};\n    Services.scriptloader.loadSubScript(\`\${rootURI}/content/scripts/probe.js\`, probe);\n    probe.startProbe();\n  } catch (e) {\n    Zotero.logError ? Zotero.logError("[Z-Transplit QA] probe failed: " + e) : Zotero.debug("probe failed: " + e);\n  }`,
+    /await Zotero\.WenxianYidu\.hooks\.onStartup\(\);/,
+    `await Zotero.WenxianYidu.hooks.onStartup();\n  try {\n    const probe = ctx._probe = { bundleScope: ctx };\n    Services.scriptloader.loadSubScript(\`\${rootURI}/content/scripts/probe.js\`, probe);\n    probe.startProbe();\n  } catch (e) {\n    Zotero.logError ? Zotero.logError("[文献译读 QA] probe failed: " + e) : Zotero.debug("probe failed: " + e);\n  }`,
   );
   if (!patched.includes("startProbe")) {
     throw new Error("bootstrap patch failed — onStartup marker not found");
@@ -157,7 +149,6 @@ function boot() {
   // Kill only OUR previous instance by default; a full machine-wide kill is
   // opt-in (QA_KILL_ALL=1) so the user's own Zotero session survives a QA boot.
   stopQaZotero();
-  if (process.env.QA_KILL_ALL) stopZotero();
   sleepSync(1000);
   // A fresh profile each boot: Zotero caches extensions.json and a stale
   // entry would silently skip our addon. The data dir is wiped too unless
@@ -170,17 +161,16 @@ function boot() {
   fs.mkdirSync(dataDir, { recursive: true });
 
   // Zotero discovers exactly one addon per proxy-file install, so the addon
-  // under test is the probe copy: the shipped addon, byte-identical except
-  // that its bootstrap also loads probe.js. The shipped build dir in
-  // .scaffold/build is never touched.
-  writeProxyAddon(ADDON_ID, buildProbeCopy());
+  // under test is a QA copy with probe.js and a controlled progress hook.
+  // The shipped build directory and production XPI are never patched.
+  writeDirAddon(ADDON_ID, buildProbeCopy());
   log("installed:", fs.readdirSync(extensionsDir).join(", "));
 
   // QA_LOCALE picks the UI language (default en-US, matching the repo's
   // language-independent QA assertions); QA_EXTRA_PREFS points at a JSON
   // object of extra user_pref values (engine credentials for a shot run —
   // the file lives outside the repo and is never committed).
-  const locale = process.env.QA_LOCALE || "en-US";
+  const locale = process.env.QA_LOCALE || "zh-CN";
   const extraPrefs = [];
   if (process.env.QA_EXTRA_PREFS && fs.existsSync(process.env.QA_EXTRA_PREFS)) {
     const parsed = JSON.parse(fs.readFileSync(process.env.QA_EXTRA_PREFS, "utf8"));
@@ -198,10 +188,18 @@ function boot() {
       `user_pref("extensions.zotero.debug", true);`,
       `user_pref("extensions.zotero.debug.time", true);`,
       `user_pref("extensions.autoDisableScopes", 0);`,
+      `user_pref("extensions.logging.enabled", true);`,
       `user_pref("extensions.lastAppBuildId", "");`,
       `user_pref("extensions.lastAppVersion", "");`,
       `user_pref("browser.shell.checkDefaultBrowser", false);`,
       `user_pref("toolkit.telemetry.enabled", false);`,
+      // A fresh QA profile looks like a first install, and on first run Zotero
+      // opens https://www.zotero.org/start in the user's default browser
+      // (zoteroPane.js checks `firstRun2`). The harness boots many short-lived
+      // profiles, so that turned into the same web page popping up over and over
+      // on a machine where someone is working. Pretend the first run is done.
+      `user_pref("extensions.zotero.firstRun2", false);`,
+      `user_pref("extensions.zotero.firstRun", false);`,
       // The UI language under test (en-US keeps QA assertions language-
       // independent; zh-CN exercises the Chinese strings).
       `user_pref("general.useragent.locale", "${locale}");`,
@@ -217,14 +215,15 @@ function boot() {
     ZOTERO_BIN,
     [
       "--purgecaches",
-      "no-remote",
+      "-no-remote",
       "-profile",
       profileDir,
       "--dataDir",
       dataDir,
       "-ZoteroDebugText",
     ],
-    { detached: true, stdio: ["ignore", out, out] },
+    { detached: true, windowsHide: true, stdio: ["ignore", out, out],
+      env: process.env.QA_NO_SYSTEM_NODE === "1" ? { ...process.env, PATH: `${process.env.SystemRoot}\\System32;${process.env.SystemRoot}` } : process.env },
   );
   child.unref();
   fs.closeSync(out);
@@ -251,7 +250,7 @@ async function send(action, arg) {
     log("waiting for driver ready…");
     if (!(await waitReady())) throw new Error("driver never became ready");
   }
-  const id = ++cmdCounter;
+  const id = Date.now() * 1000 + (++cmdCounter % 1000);
   rmIfExists(resultFile);
   fs.writeFileSync(cmdFile, JSON.stringify({ id, action, arg }), "utf8");
   const t0 = Date.now();
@@ -260,7 +259,12 @@ async function send(action, arg) {
       const raw = fs.readFileSync(resultFile, "utf8");
       try {
         const parsed = JSON.parse(raw);
-        if (parsed.id === id) return parsed;
+        if (parsed.id === id) {
+          const evidenceDir=path.join(QA_ROOT,"results");
+          fs.mkdirSync(evidenceDir,{recursive:true});
+          fs.writeFileSync(path.join(evidenceDir,`${Date.now()}-${action.replace(/[^a-z0-9-]/gi,"_")}.json`),raw);
+          return parsed;
+        }
       } catch {
         /* partial write */
       }
@@ -286,7 +290,9 @@ if (main === "boot") {
   process.exit(ok ? 0 : 2);
 } else if (main === "send") {
   const action = process.argv[3];
-  const arg = process.argv[4];
+  const rawArg = process.argv[4];
+  let arg = rawArg;
+  if(rawArg && /^[\[{]/.test(rawArg)) { try { arg=JSON.parse(rawArg); } catch {} }
   if (!action) {
     log("usage: send <action> [arg]");
     process.exit(1);
@@ -296,8 +302,7 @@ if (main === "boot") {
 } else if (main === "shoot") {
   // Default: close only the QA instance. QA_KILL_ALL=1 keeps the old
   // machine-wide behaviour for CI-style runs.
-  if (process.env.QA_KILL_ALL) stopZotero();
-  else stopQaZotero();
+  stopQaZotero();
   log("zotero stopped");
 } else if (main === "log") {
   const which = process.argv[3] === "zotero" ? zoteroLog : zoteroLog;

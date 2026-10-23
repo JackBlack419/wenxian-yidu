@@ -1,12 +1,13 @@
 import { config } from "../../package.json";
 import { safeDebug } from "./logger";
+import { getCredential, isCredentialKey } from "./credentials";
 
 const PREFS_PREFIX = config.prefsPrefix;
 
 export type PrefValue = boolean | string | number;
 
 /**
- * Preferences live on the `extensions.zotero.ztransplit.*` branch, declared as
+ * Preferences live on the `extensions.zotero.wenxianyidu.*` branch, declared as
  * defaults in addon/prefs.js. Every read is defensive: the Zotero global is not
  * present when these modules are imported outside Zotero (vitest), and a pref
  * read must never be able to break the caller.
@@ -17,17 +18,20 @@ function prefs(): any {
 }
 
 function readPref(key: string): PrefValue | undefined {
+  if (isCredentialKey(key)) return getCredential(key);
   const branch = prefs();
   if (!branch) return undefined;
   try {
     return branch.get(`${PREFS_PREFIX}.${key}`, true) as PrefValue | undefined;
   } catch (e) {
-    safeDebug(`[Z-Transplit] getPref('${key}') failed: ${String(e)}`);
+    safeDebug(`[文献译读] getPref('${key}') failed: ${String(e)}`);
     return undefined;
   }
 }
 
 function writePref(key: string, value: PrefValue | undefined, action: string): boolean {
+  // Credentials must be saved through the asynchronous secure-store bridge.
+  if (isCredentialKey(key)) return false;
   const branch = prefs();
   if (!branch) return false;
   try {
@@ -35,7 +39,7 @@ function writePref(key: string, value: PrefValue | undefined, action: string): b
     else branch.set(`${PREFS_PREFIX}.${key}`, value as PrefValue, true);
     return true;
   } catch (e) {
-    safeDebug(`[Z-Transplit] ${action}Pref('${key}') failed: ${String(e)}`);
+    safeDebug(`[文献译读] ${action}Pref('${key}') failed: ${String(e)}`);
     return false;
   }
 }

@@ -22,6 +22,6 @@ export function alertDialog(title: string, text: string, win?: any): void {
       win ?? (globalThis as any).Zotero?.getMainWindow?.() ?? null;
     Services?.prompt?.alert(parent, title, text);
   } catch (e) {
-    safeDebug("[Z-Transplit] alertDialog failed: " + e);
+    safeDebug("[文献译读] alertDialog failed: " + e);
   }
 }

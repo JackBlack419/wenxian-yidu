@@ -21,6 +21,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountTranslatePane } from "../../../src/ui/translatePane";
+import { bindReflowSelection } from "../../../src/core/pdf/sdt/selectionBridge";
 import {
   clearTranslationCache,
   engineCacheIdentity,
@@ -38,28 +39,28 @@ import {
   uninstallIOUTilsShim,
 } from "../../node/helpers/ioutils-shim";
 
-const PREFIX = "extensions.zotero.ztransplit.";
+const PREFIX = "extensions.zotero.wenxianyidu.";
 
 /** Zotero 7 的 getString 在无 Fluent 环境回退为带前缀的键本身。 */
 const K = {
-  action: "ztransplit-pane-translate-action",
-  retry: "ztransplit-pane-translate-retry",
-  copy: "ztransplit-pane-translate-copy",
-  refresh: "ztransplit-pane-translate-refresh",
-  translating: "ztransplit-pane-translate-translating",
-  placeholder: "ztransplit-pane-translate-placeholder",
-  resultPlaceholder: "ztransplit-pane-translate-result-placeholder",
-  emptySelection: "ztransplit-pane-translate-empty-selection",
-  tooLong: "ztransplit-pane-translate-error-too-long",
-  notReady: "ztransplit-pane-translate-error-not-ready",
-  service: "ztransplit-pane-translate-error-service",
-  emptyResult: "ztransplit-pane-translate-error-empty",
-  genericError: "ztransplit-pane-translate-error",
-  noReader: "ztransplit-pane-translate-no-reader",
-  copyFailed: "ztransplit-pane-translate-copy-failed",
-  lookup: "ztransplit-pane-translate-lookup-action",
-  lookingUp: "ztransplit-pane-translate-looking-up",
-  sourceYoudao: "ztransplit-pane-translate-card-source-youdao",
+  action: "wenxianyidu-pane-translate-action",
+  retry: "wenxianyidu-pane-translate-retry",
+  copy: "wenxianyidu-pane-translate-copy",
+  refresh: "wenxianyidu-pane-translate-refresh",
+  translating: "wenxianyidu-pane-translate-translating",
+  placeholder: "wenxianyidu-pane-translate-placeholder",
+  resultPlaceholder: "wenxianyidu-pane-translate-result-placeholder",
+  emptySelection: "wenxianyidu-pane-translate-empty-selection",
+  tooLong: "wenxianyidu-pane-translate-error-too-long",
+  notReady: "wenxianyidu-pane-translate-error-not-ready",
+  service: "wenxianyidu-pane-translate-error-service",
+  emptyResult: "wenxianyidu-pane-translate-error-empty",
+  genericError: "wenxianyidu-pane-translate-error",
+  noReader: "wenxianyidu-pane-translate-no-reader",
+  copyFailed: "wenxianyidu-pane-translate-copy-failed",
+  lookup: "wenxianyidu-pane-translate-lookup-action",
+  lookingUp: "wenxianyidu-pane-translate-looking-up",
+  sourceYoudao: "wenxianyidu-pane-translate-card-source-youdao",
 };
 
 interface Ctx {
@@ -165,7 +166,7 @@ describe("B16 阅读器翻译面板：选区与自动翻译", () => {
     expect(ctx.text(ctx.body)).not.toContain(K.placeholder);
     // 译文区作为稳定区块存在：空闲时渲染占位框，而不是等翻译成功才出现
     expect(ctx.text(ctx.body)).toContain(K.resultPlaceholder);
-    expect(ctx.doc.querySelectorAll(".ztransplit-tp-result-text").length).toBe(1);
+    expect(ctx.doc.querySelectorAll(".wenxianyidu-tp-result-text").length).toBe(1);
   });
 
   it("真机回归：reader 为附件 itemID、section 传入父条目 id 时仍能读到选区", () => {
@@ -184,7 +185,7 @@ describe("B16 阅读器翻译面板：选区与自动翻译", () => {
     mountTranslatePane({ doc: ctx.doc, body: ctx.body });
     expect(ctx.text(ctx.body)).toContain(K.emptySelection);
     expect(ctx.text(ctx.body)).toContain(K.resultPlaceholder);
-    expect(ctx.doc.querySelectorAll(".ztransplit-tp-result-text").length).toBe(1);
+    expect(ctx.doc.querySelectorAll(".wenxianyidu-tp-result-text").length).toBe(1);
     expect(ctx.buttons(K.action).length).toBe(0);
   });
 
@@ -374,6 +375,86 @@ describe("B16 选区读数过期时以弹窗文本为准（2026-10-09 回归）"
   });
 });
 
+describe("对照页面划词翻译", () => {
+  let ctx: Ctx;
+  const cleanups: Array<() => void> = [];
+  afterEach(() => {
+    for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+    ctx?.fm.uninstall();
+    ctx?.z.uninstall();
+    ctx?.dom.window.close();
+  });
+  function reflow() {
+    const dom = new JSDOM('<article id="sdt-content"><p>Selected scientific sentence.</p><p>A different sentence.</p></article>');
+    cleanups.push(() => dom.window.close());
+    const doc = dom.window.document;
+    const unbind = bindReflowSelection(ctx.z.Zotero.Reader.getByTabID(1), doc);
+    cleanups.push(unbind);
+    return { doc, unbind, select(selector: string) {
+      const range = doc.createRange();
+      range.selectNodeContents(doc.querySelector(selector)!);
+      doc.getSelection()!.removeAllRanges();
+      doc.getSelection()!.addRange(range);
+      doc.dispatchEvent(new dom.window.Event("selectionchange"));
+    } };
+  }
+  function mount() {
+    const handle = mountTranslatePane({ doc: ctx.doc, body: ctx.body });
+    cleanups.push(() => handle.destroy());
+    return handle;
+  }
+  it("opening the panel reads the current reflow selection, ignoring stale PDF ranges and popup text", async () => {
+    ctx = setup({ ...ENGINE_PREFS, "translate.auto": true }, ["Old PDF selection"]);
+    routeOK(ctx.fm);
+    const page = reflow();
+    page.select("p");
+    mount();
+    await flush(100);
+    ctx.z.fireSelectionPopup("Stale popup selection");
+    await flush(350);
+    expect(ctx.doc.querySelector(".wenxianyidu-tp-source-text")?.textContent).toBe("Selected scientific sentence.");
+    expect(ctx.fm.calls).toHaveLength(1);
+    expect(ctx.fm.calls[0].body).toContain("Selected scientific sentence.");
+  });
+  it("new and cleared DOM selections sync automatically; empty reflow selection cannot revive hidden PDF ranges", async () => {
+    ctx = setup({ ...ENGINE_PREFS, "translate.auto": true }, ["Old PDF selection"]);
+    routeOK(ctx.fm);
+    const page = reflow();
+    mount();
+    await flush();
+    expect(ctx.fm.calls).toHaveLength(0);
+    page.select("p");
+    await flush(350);
+    expect(ctx.fm.calls).toHaveLength(1);
+    expect(ctx.text(ctx.body)).toContain("译文");
+    page.select("p + p");
+    await flush(350);
+    expect(ctx.fm.calls).toHaveLength(2);
+    expect(ctx.fm.calls[1].body).toContain("A different sentence.");
+    page.doc.getSelection()!.removeAllRanges();
+    page.doc.dispatchEvent(new page.doc.defaultView!.Event("selectionchange"));
+    await flush(350);
+    expect(ctx.text(ctx.body)).toContain(K.emptySelection);
+    expect(ctx.text(ctx.body)).not.toContain("Old PDF selection");
+  });
+  it("exit restores PDF selection; disposed panes do not translate later reflow events", async () => {
+    ctx = setup({ ...ENGINE_PREFS, "translate.auto": true }, ["Original PDF sentence"]);
+    routeOK(ctx.fm);
+    const page = reflow();
+    const handle = mount();
+    page.select("p");
+    await flush(350);
+    page.unbind();
+    await flush(350);
+    expect(ctx.doc.querySelector(".wenxianyidu-tp-source-text")?.textContent).toBe("Original PDF sentence");
+    expect(ctx.fm.calls).toHaveLength(2);
+    handle.destroy();
+    page.select("p + p");
+    await flush(350);
+    expect(ctx.fm.calls).toHaveLength(2);
+  });
+});
+
 describe("B16 阅读器翻译面板：失败显式披露（失败≠空）", () => {
   let ctx: Ctx;
   afterEach(() => {
@@ -408,7 +489,11 @@ describe("B16 阅读器翻译面板：失败显式披露（失败≠空）", () 
     mountTranslatePane({ doc: ctx.doc, body: ctx.body });
     ctx.click(K.action);
     await flush();
-    expect(ctx.text(ctx.body)).toContain(K.emptyResult);
+    // Empty responses may now be rejected in the shared engine before the UI
+    // receives a string. Either path must render an explicit error and retry.
+    expect(ctx.doc.querySelector(".wenxianyidu-tp-error")).not.toBeNull();
+    expect(ctx.buttons(K.retry)).toHaveLength(1);
+    expect(ctx.doc.querySelector(".wenxianyidu-tp-result-actions")).toBeNull();
   });
 
   it("引擎未就绪（custom 缺 apiUrl）：not-ready 错误，不发请求", async () => {
@@ -464,7 +549,7 @@ describe("B16 阅读器翻译面板：生命周期", () => {
     handle.destroy();
     await flush(60);
     expect(ctx.body.childNodes.length).toBe(0);
-    expect(ctx.doc.querySelectorAll("style.ztransplit-tp-style").length).toBe(0);
+    expect(ctx.doc.querySelectorAll("style.wenxianyidu-tp-style").length).toBe(0);
   });
 
   it("同一 body 重复挂载是幂等的（刷新而非重建）", () => {
@@ -537,7 +622,7 @@ describe("词卡：单词选区走词典链", () => {
     mountTranslatePane({ doc: ctx.doc, body: ctx.body });
     ctx.click(K.lookup);
     await flush(60); // 查询 + 入库 + 词块刷新三段异步
-    const chips = ctx.doc.querySelector(".ztransplit-tp-chips");
+    const chips = ctx.doc.querySelector(".wenxianyidu-tp-chips");
     expect(chips).not.toBeNull();
     expect((chips as any).hidden).toBe(false);
     expect(ctx.text(chips)).toContain("resonance");
@@ -589,7 +674,7 @@ describe("词卡：单词选区走词典链", () => {
     await flush(1200);
     expect(ctx.text(ctx.body)).toContain("共振");
     expect(ctx.text(ctx.body)).toContain(
-      "ztransplit-pane-translate-card-source-mt",
+      "wenxianyidu-pane-translate-card-source-mt",
     );
   });
 
@@ -616,7 +701,7 @@ describe("词卡：单词选区走词典链", () => {
     const callsAfterSentence = ctx.fm.calls.length;
 
     // 点词块 → 卡片回来，零新增网络请求
-    const chip = [...ctx.doc.querySelectorAll(".ztransplit-tp-chip")].find(
+    const chip = [...ctx.doc.querySelectorAll(".wenxianyidu-tp-chip")].find(
       (c: any) => String(c.textContent) === "resonance",
     );
     expect(chip).toBeTruthy();
@@ -633,7 +718,7 @@ describe("B16 划词翻译：持久段落缓存（与 PDF 管线 / 双语对照�
   let cacheDir: string;
   beforeEach(() => {
     // 真实读写一个临时缓存目录：断言的是磁盘记录与命中行为，不是内存桩。
-    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "ztransplit-pane-cache-"));
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "wenxianyidu-pane-cache-"));
     setCacheDirForTests(cacheDir);
     installIOUTilsShim();
     clearTranslationCache();
@@ -665,7 +750,8 @@ describe("B16 划词翻译：持久段落缓存（与 PDF 管线 / 双语对照�
       "persistent paragraph",
     );
     const hits = await getCachedTranslations([key]);
-    expect(hits.get(key)).toBe("已缓存译文");
+    expect(key).not.toBeNull();
+    expect(hits.get(key!)).toBe("已缓存译文");
   });
 
   it("同一文本再次翻译命中缓存：不再发网络请求", async () => {

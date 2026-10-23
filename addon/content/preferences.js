@@ -1,18 +1,18 @@
 /**
- * Z-Transplit 设置面板（编辑 → 设置 → Z-Transplit）行为脚本。
+ * 文献译读 设置面板（编辑 → 设置 → 文献译读）行为脚本。
  *
  * 由 Zotero.PreferencePanes.register({ scripts: [...] }) 加载，执行时机早于
  * 面板 DOM 插入设置窗口（见 Zotero_Preferences._loadPane：先加载脚本，再拉取
  * 并解析 xhtml 片段），所以这里不能直接查询元素；入口是片段根元素上的
- * onload="ZTransplitPrefs.onLoad(event)"（Zotero 在 _initImportedNodesPostInsert
+ * onload="WenxianYiduPrefs.onLoad(event)"（Zotero 在 _initImportedNodesPostInsert
  * 里对面板容器每个子元素派发 load 事件）。
  *
  * 约定：
  *   - 面板脚本运行在 Cu.Sandbox(window, { sandboxPrototype: window }) 中，
  *     document / Zotero 都从设置窗口解析；顶层声明不会挂到 window 上，所以
- *     必须显式挂 window.ZTransplitPrefs 才能被 xhtml 里的 oncommand 调用。
+ *     必须显式挂 window.WenxianYiduPrefs 才能被 xhtml 里的 oncommand 调用。
  *   - 只用 Zotero.Prefs / Zotero.PDFTranslate / Zotero.DataDirectory 这些
- *     设置窗口里一定存在的 API，不依赖插件主包（Zotero.ZTransplit）是否加载。
+ *     设置窗口里一定存在的 API，不依赖插件主包（Zotero.WenxianYidu）是否加载。
  *   - 任何一步失败都不能让面板崩掉：全部 try/catch，且不弹 alert/confirm，
  *     出错只写 Zotero.debug。
  *   - 引擎切换只切 hidden 属性，不重建 DOM、不移动焦点，因此不跳焦也不抖滚动。
@@ -21,7 +21,7 @@
 (function () {
   "use strict";
 
-  var PREF_PREFIX = "extensions.zotero.ztransplit.";
+  var PREF_PREFIX = "extensions.zotero.wenxianyidu.";
 
   var MAX_CHARS_MIN = 100;
   var MAX_CHARS_MAX = 50000;
@@ -34,20 +34,23 @@
 
   /**
    * 字体覆盖目录。与 src/core/pdf/translation/opendataloaderSplitAdapter.ts
-   * #translationAssetsDir 保持一字不差：代码读的是 {DataDir}/ztransplit/…，
+   * #translationAssetsDir 保持一字不差：代码读的是 {DataDir}/wenxianyidu/…，
    * 面板就必须显示同一个路径，否则用户会把字体放错地方。
    */
-  var ASSETS_SUBDIR = "ztransplit/translation-assets";
+  var ASSETS_SUBDIR = "wenxianyidu/translation-assets";
 
   /** 引擎值 -> 字段组元素 id（与 xhtml 中的 id 对应）。 */
   var ENGINE_GROUPS = [
-    ["google", "ztransplit-pref-engine-google"],
-    ["bing", "ztransplit-pref-engine-bing"],
-    ["bing-web", "ztransplit-pref-engine-bingweb"],
-    ["deepl", "ztransplit-pref-engine-deepl"],
-    ["ai", "ztransplit-pref-engine-ai"],
-    ["custom", "ztransplit-pref-engine-custom"],
-    ["zotero-pdf-translate", "ztransplit-pref-engine-pdftranslate"],
+    ["youdao", "wenxianyidu-pref-engine-youdao"],
+    ["niutrans", "wenxianyidu-pref-engine-niutrans"],
+    ["youdao-official", "wenxianyidu-pref-engine-youdao-official"],
+    ["google", "wenxianyidu-pref-engine-google"],
+    ["bing", "wenxianyidu-pref-engine-bing"],
+    ["bing-web", "wenxianyidu-pref-engine-bingweb"],
+    ["deepl", "wenxianyidu-pref-engine-deepl"],
+    ["ai", "wenxianyidu-pref-engine-ai"],
+    ["custom", "wenxianyidu-pref-engine-custom"],
+    ["zotero-pdf-translate", "wenxianyidu-pref-engine-pdftranslate"],
   ];
 
   /** 元素引用缓存，load 时填充。 */
@@ -87,7 +90,7 @@
       Zotero.Prefs.set(PREF_PREFIX + key, value, true);
       return true;
     } catch (e) {
-      Zotero.debug("[Z-Transplit] prefs: set " + key + " failed: " + e);
+      Zotero.debug("[文献译读] prefs: set " + key + " failed: " + e);
       return false;
     }
   }
@@ -223,13 +226,13 @@
 
   /** 与 TS 版同序的七种非法原因 → 隐藏本地化节点 id 后缀。 */
   var AI_PROMPT_STRING_IDS = {
-    "too-long": "ztransplit-pref-string-ai-prompt-too-long",
-    "unknown-placeholder": "ztransplit-pref-string-ai-prompt-unknown-placeholder",
-    "missing-text": "ztransplit-pref-string-ai-prompt-missing-text",
-    "duplicate-text": "ztransplit-pref-string-ai-prompt-duplicate-text",
-    "missing-source-lang": "ztransplit-pref-string-ai-prompt-missing-source-lang",
-    "missing-target-lang": "ztransplit-pref-string-ai-prompt-missing-target-lang",
-    "unbalanced-braces": "ztransplit-pref-string-ai-prompt-unbalanced-braces",
+    "too-long": "wenxianyidu-pref-string-ai-prompt-too-long",
+    "unknown-placeholder": "wenxianyidu-pref-string-ai-prompt-unknown-placeholder",
+    "missing-text": "wenxianyidu-pref-string-ai-prompt-missing-text",
+    "duplicate-text": "wenxianyidu-pref-string-ai-prompt-duplicate-text",
+    "missing-source-lang": "wenxianyidu-pref-string-ai-prompt-missing-source-lang",
+    "missing-target-lang": "wenxianyidu-pref-string-ai-prompt-missing-target-lang",
+    "unbalanced-braces": "wenxianyidu-pref-string-ai-prompt-unbalanced-braces",
   };
 
   /** @returns {{ok: boolean, reason: string}} reason 为空表示合法。 */
@@ -431,12 +434,248 @@
         engine = "";
       }
     }
-    if (!engine) engine = String(getPref("translate.engineType") || "google");
+    if (!engine) engine = String(getPref("translate.engineType") || "youdao");
 
     ENGINE_GROUPS.forEach(function (pair) {
       var el = $(pair[1]);
       if (el) show(el, pair[0] === engine);
     });
+    show($("wenxianyidu-pref-traditional-prompt-note"), engine !== "ai" && engine !== "custom");
+  }
+
+  function addonBridge() {
+    return Zotero.WenxianYidu || (Zotero.getMainWindow && Zotero.getMainWindow().Zotero.WenxianYidu);
+  }
+
+  function credentialStatus(text) {
+    var target = $("wenxianyidu-pref-secret-status");
+    if (target) target.textContent = text;
+  }
+
+  function bindSecureCredentials() {
+    var root = $("zotero-prefpane-wenxianyidu");
+    if (!root) return;
+    var bridge;
+    try { bridge = addonBridge(); } catch (_) { /* unavailable */ }
+    var fields = root.querySelectorAll("[data-secret-pref]");
+    Array.from(fields).forEach(function (field) {
+      var key = field.getAttribute("data-secret-pref");
+      try { field.value = bridge && bridge.credentials ? bridge.credentials.get(key) || "" : ""; } catch (_) {
+        field.value = ""; field.disabled = true; field._credentialReadFailed = true;
+        credentialStatus("无法读取本机安全存储，请解锁密码管理器后重新打开设置。已有密钥不会被清除。");
+      }
+      if (!bridge || !bridge.credentials) {
+        field.disabled = true;
+        credentialStatus("安全存储尚未就绪，请重新启用插件或重启 Zotero。不会将密钥写入普通设置。");
+        return;
+      }
+      field.addEventListener("change", function () {
+        field._credentialSave = bridge.credentials.set(key, field.value).then(function () {
+          credentialStatus("凭据已保存到本机安全存储。");
+        }).catch(function () {
+          credentialStatus("凭据保存失败，请检查系统安全存储后重试。密钥未写入普通设置。");
+          throw new Error("Credential storage unavailable");
+        });
+        field._credentialSave.catch(function () {});
+      });
+    });
+  }
+
+  function saveEndpoint(field) {
+    var raw = String(field.value || "").trim();
+    try {
+      if (raw) {
+        var endpoint = new URL(raw);
+        if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].indexOf(endpoint.hostname) !== -1)) throw new Error("远程 AI 接口必须使用 HTTPS；本机模型可使用 localhost HTTP。");
+        if (endpoint.username || endpoint.password || Array.from(endpoint.searchParams.keys()).some(function (key) { return /^(?:key|api[-_]?key|token|access[-_]?token|secret|password|sign)$/i.test(key); })) throw new Error("请将密钥填写在 API Key 字段，不要放入接口地址。");
+      }
+      field.removeAttribute("aria-invalid");
+      setPref(field.getAttribute("data-endpoint-pref"), raw);
+      return true;
+    } catch (error) {
+      field.setAttribute("aria-invalid", "true");
+      credentialStatus(String(error.message || "请输入有效的接口地址。"));
+      return false;
+    }
+  }
+
+  function bindEndpointFields() {
+    var root = $("zotero-prefpane-wenxianyidu");
+    if (!root) return;
+    Array.from(root.querySelectorAll("[data-endpoint-pref]")).forEach(function (field) {
+      field.value = String(getPref(field.getAttribute("data-endpoint-pref")) || "");
+      field.addEventListener("change", function () { saveEndpoint(field); });
+    });
+  }
+
+  async function flushSecureCredentials(engine) {
+    var bridge = addonBridge();
+    if (!bridge || !bridge.credentials) throw new Error("安全存储未就绪，请重启 Zotero 后重试。");
+    var root = $("zotero-prefpane-wenxianyidu");
+    var prefix = {
+      "google": "translate.google.", "bing": "translate.bing.", "deepl": "translate.deepl.",
+      "ai": "translate.ai.", "custom": "translate.custom.", "niutrans": "translate.niutrans.",
+      "youdao-official": "translate.youdaoOfficial."
+    }[engine];
+    var fields = root && prefix ? Array.from(root.querySelectorAll("[data-secret-pref]")).filter(function (field) {
+      return field.getAttribute("data-secret-pref").indexOf(prefix) === 0;
+    }) : [];
+    await Promise.all(fields.map(function (field) {
+      if (field._credentialReadFailed) throw new Error("无法读取本机安全存储，请重新打开设置后重试。");
+      return bridge.credentials.set(field.getAttribute("data-secret-pref"), String(field.value || ""));
+    }));
+  }
+
+  async function testConnection() {
+    var button = $("wenxianyidu-pref-test-connection");
+    var status = $("wenxianyidu-pref-connection-status");
+    var selectedEngine = String(els.engineList && els.engineList.value || getPref("translate.engineType") || "youdao");
+    if (button) button.disabled = true;
+    if (status) status.textContent = "正在用一条示例句测试当前引擎…";
+    try {
+      setPref("translate.engineType", selectedEngine);
+      var bridge = addonBridge();
+      if (!bridge || !bridge.translation) throw new Error("翻译模块未就绪，请重启 Zotero 后重试。");
+      var endpointField = selectedEngine === "ai" ? $("wenxianyidu-pref-ai-url") : selectedEngine === "custom" ? $("wenxianyidu-pref-custom-url") : null;
+      if (endpointField && !saveEndpoint(endpointField)) throw new Error("请先修正接口地址；密钥应填写在 API Key 字段。");
+      // Keyless engines need no credentials and remain usable if the OS store is unavailable.
+      if (["youdao", "bing-web", "zotero-pdf-translate", "mtranserver"].indexOf(selectedEngine) === -1) await flushSecureCredentials(selectedEngine);
+      if (els.aiPromptInput && selectedEngine === "ai") {
+        var check = checkAIPrompt(readPromptInput());
+        if (!check.ok) throw new Error("请先修正提示词模板，再测试连接。");
+        setPref("translate.ai.prompt", readPromptInput());
+      }
+      var result = await bridge.translation.testConnection();
+      if (String(getPref("translate.engineType")) !== selectedEngine) return;
+      if (status) status.textContent = result.success ? "连接成功：" + String(result.text || "已返回译文") : "测试失败：" + String(result.error || "服务未返回结果");
+    } catch (error) {
+      // The engine bridge redacts provider errors; storage errors never include credentials.
+      if (status) status.textContent = "测试失败：" + String(error.message || "请检查引擎配置");
+    } finally { if (button) button.disabled = false; }
+  }
+
+  function bindOfflinePreparation() {
+    var start = $("wenxianyidu-offline-start"), cancel = $("wenxianyidu-offline-cancel"), status = $("wenxianyidu-offline-status");
+    var api = addonBridge() && addonBridge().offline;
+    if (!start || !api) return;
+    var disposed = false, updates = 0;
+    var meter = $("wenxianyidu-offline-progress");
+    function display(phase, percent, snapshot) {
+      if (disposed) return;
+      var active = snapshot ? snapshot.active : ["missing", "ready", "failed", "cancelled"].indexOf(phase) === -1;
+      start.disabled = active; cancel.disabled = !active || phase === "cancelling";
+      status.textContent = javaString("wenxianyidu-pref-offline-phase-" + phase) + (typeof percent === "number" ? " (" + percent + "%)" : "") + (snapshot && snapshot.error ? " · " + snapshot.error : "");
+      if (meter) { meter.hidden = !active; if (typeof percent === "number") meter.value = percent; else meter.removeAttribute("value"); }
+    }
+    var unsubscribe = api.subscribe(function (phase, percent, snapshot) { updates++; display(phase, percent, snapshot); });
+    var initialUpdates = updates;
+    api.getStatus().then(function (s) { if (initialUpdates === updates) display(s.phase, s.percent, s); }).catch(function () { if (initialUpdates === updates) display("failed"); });
+    start.addEventListener("command", async function () {
+      start.disabled = true; cancel.disabled = false;
+      try { await api.prepare(); }
+      catch (error) { /* Shared status retains cancellation or the failure reason. */ }
+    });
+    cancel.addEventListener("command", function () { api.cancel(); });
+    window.addEventListener("unload", function () { disposed = true; unsubscribe(); });
+  }
+
+  function bindModelLists() {
+    ["ai", "custom"].forEach(function (engine) {
+      var model = $("wenxianyidu-pref-" + engine + "-model");
+      var endpoint = $("wenxianyidu-pref-" + engine + "-url");
+      var key = $("wenxianyidu-pref-" + engine + "-key");
+      var button = $("wenxianyidu-pref-" + engine + "-models-fetch");
+      var search = $("wenxianyidu-pref-" + engine + "-models-search");
+      var list = $("wenxianyidu-pref-" + engine + "-models-list");
+      var status = $("wenxianyidu-pref-" + engine + "-models-status");
+      if (!button || !model || !list || !search) return;
+      var ids = [], generation = 0, controller;
+      function render() {
+        list.replaceChildren();
+        ids.filter(function (id) { return id.toLowerCase().indexOf(search.value.toLowerCase()) !== -1; }).forEach(function (id) {
+          var option = document.createElementNS("http://www.w3.org/1999/xhtml", "option"); option.value = id; option.textContent = id; list.appendChild(option);
+        });
+        list.selectedIndex = -1;
+      }
+      function invalidate() { generation++; if (controller) controller.abort(); button.disabled = false; ids = []; render(); search.hidden = true; list.hidden = true; status.textContent = ""; }
+      [endpoint, key].forEach(function (field) { if (field) field.addEventListener("input", invalidate); });
+      button.addEventListener("command", async function () {
+        if (controller) controller.abort();
+        controller = new AbortController();
+        var request = ++generation;
+        button.disabled = true; status.textContent = javaString("wenxianyidu-pref-models-loading");
+        try {
+          var bridge = addonBridge();
+          ids = await bridge.translation.listModels({ engine: engine, apiUrl: String(endpoint.value || ""), apiKey: String(key.value || ""), signal: controller.signal });
+          if (request !== generation) return;
+          render(); search.hidden = false; list.hidden = false;
+          status.textContent = javaString("wenxianyidu-pref-models-ready");
+        } catch (error) { if (request === generation) status.textContent = javaString("wenxianyidu-pref-models-failed") + " " + (error.name === "AbortError" ? javaString("wenxianyidu-pref-models-timeout") : String(error.message || "")); }
+        finally { if (request === generation) button.disabled = false; }
+      });
+      search.addEventListener("input", render);
+      list.addEventListener("change", function () { if (!list.value) return; model.value = list.value; setPref("translate." + engine + ".model", list.value); });
+      window.addEventListener("unload", function () { generation++; if (controller) controller.abort(); });
+    });
+  }
+
+  function applyAIPreset(event) {
+    var preset = String(event.target.value || "custom");
+    if (preset === "custom") return;
+    var url = preset === "deepseek" ? "https://api.deepseek.com/chat/completions" : "http://127.0.0.1:11434/v1";
+    var model = preset === "deepseek" ? "deepseek-flash" : "";
+    setPref("translate.ai.apiUrl", url); setPref("translate.ai.model", model);
+    if ($("wenxianyidu-pref-ai-url")) $("wenxianyidu-pref-ai-url").value = url;
+    if ($("wenxianyidu-pref-ai-model")) $("wenxianyidu-pref-ai-model").value = model;
+    // A preset changes the destination: never reuse another provider's key.
+    var keyInput = $("wenxianyidu-pref-ai-key");
+    if (keyInput) keyInput.value = "";
+    try { var bridge = addonBridge(); if (bridge && bridge.credentials) bridge.credentials.clear("translate.ai.apiKey").catch(function () { credentialStatus("无法清除原接口密钥，请先检查安全存储。"); }); } catch (_) { /* an empty UI field is retained */ }
+    credentialStatus(preset === "local" ? "请填写本机实际已安装的模型名称。已清空原接口密钥，本地模型通常无需密钥。" : "已填入 DeepSeek 地址和模型，请粘贴属于该平台的 API Key。原接口密钥已清空。");
+  }
+
+  function previewPrompt() {
+    var target = $("wenxianyidu-pref-ai-preview-result"); if (!target) return;
+    var bridge; try { bridge = addonBridge(); } catch (_) { /* no bridge */ }
+    var prompt = readPromptInput() || (bridge && bridge.translation && bridge.translation.getDefaultPrompt());
+    if (!prompt) { target.textContent = "默认模板尚未载入，请重启插件后重试。"; show(target, true); return; }
+    target.textContent = String(prompt).replace(/\{\{text\}\}/g, "This study evaluates the accuracy of machine translation.").replace(/\{\{sourceLang\}\}/g, "English").replace(/\{\{targetLang\}\}/g, "Simplified Chinese");
+    show(target, true);
+  }
+
+  function openHelp(event) {
+    event.preventDefault();
+    var href = event.currentTarget.getAttribute("href");
+    if (href && /^https:\/\//.test(href)) Zotero.launchURL(href);
+  }
+
+  function toggleAdvancedEngines(event) {
+    var selected = String(getPref("translate.engineType") || "youdao");
+    var advanced = ["google", "bing", "deepl", "custom", "zotero-pdf-translate"];
+    var visible = !!event.target.checked || advanced.indexOf(selected) !== -1;
+    var root = $("zotero-prefpane-wenxianyidu");
+    if (root) Array.from(root.querySelectorAll(".wenxianyidu-advanced-engine")).forEach(function (item) { show(item, visible); });
+  }
+
+  function simplifyLayout() {
+    var root = $("zotero-prefpane-wenxianyidu");
+    if (!root) return;
+    var engineGroup = $("wenxianyidu-pref-group-engine");
+    var general = $("wenxianyidu-pref-group-general");
+    var pdf = $("wenxianyidu-pref-group-pdf");
+    var container = engineGroup && engineGroup.parentNode;
+    if (!container) return;
+    [[general, "高级阅读选项"], [pdf, "全文处理组件（首次自动准备）"]].forEach(function (pair) {
+      var group = pair[0]; if (!group || group.parentNode && group.parentNode.localName === "details") return;
+      var details = document.createElementNS("http://www.w3.org/1999/xhtml", "details");
+      var summary = document.createElementNS("http://www.w3.org/1999/xhtml", "summary"); summary.textContent = pair[1]; details.appendChild(summary); details.appendChild(group); container.appendChild(details);
+    });
+    // Region selection should never silently change the chosen service.
+    var region = $("wenxianyidu-pref-region");
+    if (region) {
+      var regionRow = region.closest("hbox");
+      if (regionRow) { regionRow.hidden = true; if (regionRow.nextElementSibling) regionRow.nextElementSibling.hidden = true; }
+    }
   }
 
   // ── 网络区域 ────────────────────────────────────────────────────────────
@@ -488,8 +727,8 @@
     var note = els.regionNote;
     if (!note) return;
     var source = $(written.length
-      ? "ztransplit-pref-region-note-applied"
-      : "ztransplit-pref-region-note-nochange");
+      ? "wenxianyidu-pref-region-note-applied"
+      : "wenxianyidu-pref-region-note-nochange");
     if (source && source.textContent) note.textContent = source.textContent;
     show(note, Boolean(source && source.textContent));
   }
@@ -535,8 +774,8 @@
 
   function syncPDFTranslateStatus() {
     var installed = hasPDFTranslate();
-    show($("ztransplit-pref-pdftranslate-installed"), installed);
-    show($("ztransplit-pref-pdftranslate-missing"), !installed);
+    show($("wenxianyidu-pref-pdftranslate-installed"), installed);
+    show($("wenxianyidu-pref-pdftranslate-missing"), !installed);
 
     // 下拉项标签同步：没装插件时标注「（未安装）」，装了就恢复原标签。
     // 文案来自 xhtml 里那个隐藏的本地化节点（Fluent 在 load 之前就翻译完了），
@@ -573,7 +812,7 @@
     if (!checkbox) return;
     var row = null;
     try {
-      row = checkbox.closest ? checkbox.closest(".ztransplit-row") : null;
+      row = checkbox.closest ? checkbox.closest(".wenxianyidu-row") : null;
     } catch (e) {
       row = null;
     }
@@ -589,7 +828,7 @@
   }
 
   // ── Java 运行库：状态检测 + 安装/修复 ───────────────────────────────────
-  // 检测与安装都走主包暴露的 Zotero.ZTransplit.java（面板脚本运行在独立
+  // 检测与安装都走主包暴露的 Zotero.WenxianYidu.java（面板脚本运行在独立
   // 沙箱里，无法 import 主包模块——与 REGION_PROFILES 镜像同一约束）。主包
   // 未加载（bundle 失败 / 插件刚重载）时只提示，不把面板搞成假失败。
   // 检测会 spawn 一次 `java -version` 进程（可能数秒），所以只在点击按钮时
@@ -603,7 +842,7 @@
 
   function javaApi() {
     try {
-      var zt = Zotero && Zotero.ZTransplit;
+      var zt = Zotero && Zotero.WenxianYidu;
       var api = zt && zt.java;
       // 检测与安装按需可用：主包只暴露了其中一半时，另一半单独降级。
       if (
@@ -731,7 +970,7 @@
       .catch(function (e) {
         try {
           Zotero.debug(
-            "[Z-Transplit] preferences: java install failed: " + e,
+            "[文献译读] preferences: java install failed: " + e,
           );
         } catch (e2) {
           /* 忽略 */
@@ -748,28 +987,28 @@
 
   function cacheJavaStrings() {
     javaStrings.btnInstalling = javaString(
-      "ztransplit-pref-string-java-btn-installing",
+      "wenxianyidu-pref-string-java-btn-installing",
     );
     javaStrings.checking = javaString(
-      "ztransplit-pref-string-java-status-checking",
+      "wenxianyidu-pref-string-java-status-checking",
     );
     javaStrings.statusInstalling = javaString(
-      "ztransplit-pref-string-java-status-installing",
+      "wenxianyidu-pref-string-java-status-installing",
     );
     javaStrings.readyManaged = javaString(
-      "ztransplit-pref-string-java-status-ready-managed",
+      "wenxianyidu-pref-string-java-status-ready-managed",
     );
     javaStrings.readySystem = javaString(
-      "ztransplit-pref-string-java-status-ready-system",
+      "wenxianyidu-pref-string-java-status-ready-system",
     );
     javaStrings.missing = javaString(
-      "ztransplit-pref-string-java-status-missing",
+      "wenxianyidu-pref-string-java-status-missing",
     );
     javaStrings.statusError = javaString(
-      "ztransplit-pref-string-java-status-error",
+      "wenxianyidu-pref-string-java-status-error",
     );
     javaStrings.nobundle = javaString(
-      "ztransplit-pref-string-java-status-nobundle",
+      "wenxianyidu-pref-string-java-status-nobundle",
     );
     javaInstallLabelBase = els.javaInstallBtn
       ? els.javaInstallBtn.getAttribute("label") || ""
@@ -777,7 +1016,7 @@
   }
 
   // ── 解析组件：状态检测 + 下载/修复 ─────────────────────────────────────
-  // 与 Java 运行库小节同一套路：检测与下载走主包暴露的 Zotero.ZTransplit.odlJar
+  // 与 Java 运行库小节同一套路：检测与下载走主包暴露的 Zotero.WenxianYidu.odlJar
   // （面板沙箱无法 import 主包模块）。检测只读磁盘（对约 24MB 组件做一次哈希
   // 核对，亚秒级），同样只在点击按钮时执行。下载失败后主包在会话内不再自动
   // 重试，这个按钮是唯一的手动重试入口，因此失败时把错误细节直接上墙。
@@ -790,7 +1029,7 @@
 
   function odlApi() {
     try {
-      var zt = Zotero && Zotero.ZTransplit;
+      var zt = Zotero && Zotero.WenxianYidu;
       var api = zt && zt.odlJar;
       if (
         api &&
@@ -900,7 +1139,7 @@
       .catch(function (e) {
         try {
           Zotero.debug(
-            "[Z-Transplit] preferences: component download failed: " + e,
+            "[文献译读] preferences: component download failed: " + e,
           );
         } catch (e2) {
           /* 忽略 */
@@ -923,31 +1162,31 @@
 
   function cacheOdlStrings() {
     odlStrings.btnDownloading = javaString(
-      "ztransplit-pref-string-odl-comp-btn-downloading",
+      "wenxianyidu-pref-string-odl-comp-btn-downloading",
     );
     odlStrings.checking = javaString(
-      "ztransplit-pref-string-odl-comp-status-checking",
+      "wenxianyidu-pref-string-odl-comp-status-checking",
     );
     odlStrings.statusDownloading = javaString(
-      "ztransplit-pref-string-odl-comp-status-downloading",
+      "wenxianyidu-pref-string-odl-comp-status-downloading",
     );
     odlStrings.readyLanded = javaString(
-      "ztransplit-pref-string-odl-comp-status-ready-landed",
+      "wenxianyidu-pref-string-odl-comp-status-ready-landed",
     );
     odlStrings.readyBundled = javaString(
-      "ztransplit-pref-string-odl-comp-status-ready-bundled",
+      "wenxianyidu-pref-string-odl-comp-status-ready-bundled",
     );
     odlStrings.missing = javaString(
-      "ztransplit-pref-string-odl-comp-status-missing",
+      "wenxianyidu-pref-string-odl-comp-status-missing",
     );
     odlStrings.statusError = javaString(
-      "ztransplit-pref-string-odl-comp-status-error",
+      "wenxianyidu-pref-string-odl-comp-status-error",
     );
     odlStrings.downloadFailed = javaString(
-      "ztransplit-pref-string-odl-comp-download-failed",
+      "wenxianyidu-pref-string-odl-comp-download-failed",
     );
     odlStrings.nobundle = javaString(
-      "ztransplit-pref-string-odl-comp-status-nobundle",
+      "wenxianyidu-pref-string-odl-comp-status-nobundle",
     );
     odlDownloadLabelBase = els.odlDownloadBtn
       ? els.odlDownloadBtn.getAttribute("label") || ""
@@ -957,31 +1196,31 @@
   // ── 入口 ────────────────────────────────────────────────────────────────
 
   function cacheElements() {
-    els.maxCharsInput = $("ztransplit-pref-maxchars");
-    els.maxCharsError = $("ztransplit-pref-maxchars-error");
-    els.batchTokensInput = $("ztransplit-pref-batchtokens");
-    els.batchTokensError = $("ztransplit-pref-batchtokens-error");
-    els.timeoutInput = $("ztransplit-pref-odl-timeout");
-    els.timeoutError = $("ztransplit-pref-odl-timeout-error");
-    els.engineList = $("ztransplit-pref-engine-type");
-    els.regionList = $("ztransplit-pref-region");
-    els.regionNote = $("ztransplit-pref-region-note");
-    els.pdfTranslateItem = $("ztransplit-pref-engine-item-pdftranslate");
-    els.aiPromptInput = $("ztransplit-pref-ai-prompt");
-    els.aiPromptError = $("ztransplit-pref-ai-prompt-error");
-    els.javaCheckBtn = $("ztransplit-pref-pdf-java-check");
-    els.javaInstallBtn = $("ztransplit-pref-pdf-java-install");
-    els.javaStatus = $("ztransplit-pref-pdf-java-status");
-    els.odlCheckBtn = $("ztransplit-pref-odl-comp-check");
-    els.odlDownloadBtn = $("ztransplit-pref-odl-comp-download");
-    els.odlStatus = $("ztransplit-pref-odl-comp-status");
+    els.maxCharsInput = $("wenxianyidu-pref-maxchars");
+    els.maxCharsError = $("wenxianyidu-pref-maxchars-error");
+    els.batchTokensInput = $("wenxianyidu-pref-batchtokens");
+    els.batchTokensError = $("wenxianyidu-pref-batchtokens-error");
+    els.timeoutInput = $("wenxianyidu-pref-odl-timeout");
+    els.timeoutError = $("wenxianyidu-pref-odl-timeout-error");
+    els.engineList = $("wenxianyidu-pref-engine-type");
+    els.regionList = $("wenxianyidu-pref-region");
+    els.regionNote = $("wenxianyidu-pref-region-note");
+    els.pdfTranslateItem = $("wenxianyidu-pref-engine-item-pdftranslate");
+    els.aiPromptInput = $("wenxianyidu-pref-ai-prompt");
+    els.aiPromptError = $("wenxianyidu-pref-ai-prompt-error");
+    els.javaCheckBtn = $("wenxianyidu-pref-pdf-java-check");
+    els.javaInstallBtn = $("wenxianyidu-pref-pdf-java-install");
+    els.javaStatus = $("wenxianyidu-pref-pdf-java-status");
+    els.odlCheckBtn = $("wenxianyidu-pref-odl-comp-check");
+    els.odlDownloadBtn = $("wenxianyidu-pref-odl-comp-download");
+    els.odlStatus = $("wenxianyidu-pref-odl-comp-status");
 
     // Zotero 在派发 load 之前已经跑完 document.l10n.translateFragment()，
     // 所以这里读到的 label / textContent 已经是本地化后的文案。
     if (els.pdfTranslateItem) {
       pdfTranslateLabels.base = els.pdfTranslateItem.getAttribute("label") || "";
     }
-    var missingLabel = $("ztransplit-pref-string-pdftranslate-missing");
+    var missingLabel = $("wenxianyidu-pref-string-pdftranslate-missing");
     if (missingLabel && missingLabel.textContent) {
       pdfTranslateLabels.missing = String(missingLabel.textContent).trim();
     }
@@ -989,7 +1228,7 @@
       // Fluent 没生效时退回 menuitem 自身的静态标签，至少不会出现空项。
       pdfTranslateLabels.missing = pdfTranslateLabels.base;
     }
-    var dataDirLabel = $("ztransplit-pref-string-datadir");
+    var dataDirLabel = $("wenxianyidu-pref-string-datadir");
     if (dataDirLabel && dataDirLabel.textContent) {
       dataDirPlaceholder = String(dataDirLabel.textContent).trim();
     }
@@ -1017,7 +1256,7 @@
       // XUL menulist 选中项变化主要抛 select；command 在某些平台上也会抛，
       // 两个都听，syncEngineFields 是幂等的，重复执行没有副作用。
       els.engineList.addEventListener("select", syncEngineFields);
-      els.engineList.addEventListener("command", syncEngineFields);
+      els.engineList.addEventListener("command", function () { confirmEngine(); syncEngineFields(); });
     }
     if (els.regionList) {
       // 与引擎下拉同理两个事件都听；onRegionPicked 幂等（重复套用第二次
@@ -1039,7 +1278,7 @@
       els.odlDownloadBtn.addEventListener("command", onOdlDownload);
     }
     // 面板每次显示时重新探测：用户可能开着设置窗口去装了 zotero-pdf-translate。
-    var root = $("zotero-prefpane-ztransplit");
+    var root = $("zotero-prefpane-wenxianyidu");
     if (root) root.addEventListener("showing", syncPDFTranslateStatus);
   }
 
@@ -1074,22 +1313,41 @@
       setAIPromptError("");
 
       syncEngineFields();
+      bindSecureCredentials();
+      bindEndpointFields();
+      bindModelLists();
+      bindOfflinePreparation();
+      simplifyLayout();
+      toggleAdvancedEngines({ target: $("wenxianyidu-pref-show-advanced-engines") || {} });
       syncPDFTranslateStatus();
 
       cacheJavaStrings();
       cacheOdlStrings();
 
-      var path = $("ztransplit-pref-pdf-fonts-path");
+      var path = $("wenxianyidu-pref-pdf-fonts-path");
       if (path) path.textContent = assetsDir();
     } catch (e) {
-      Zotero.debug("[Z-Transplit] preferences: onLoad failed: " + e);
+      Zotero.debug("[文献译读] preferences: onLoad failed: " + e);
     }
   }
 
   // xhtml 里的 oncommand 在 window 作用域求值，必须挂到 window 上。
-  window.ZTransplitPrefs = {
+  window.WenxianYiduPrefs = {
+    confirmEngine: confirmEngine,
     onLoad: onLoad,
     toggleKeyVisibility: toggleKeyVisibility,
     restoreDefaultPrompt: restoreDefaultPrompt,
+    testConnection: testConnection,
+    applyAIPreset: applyAIPreset,
+    previewPrompt: previewPrompt,
+    toggleAdvancedEngines: toggleAdvancedEngines,
+    openHelp: openHelp,
   };
+  function confirmEngine() {
+    var selected = String(els.engineList && els.engineList.value || getPref("translate.engineType") || "bing-web");
+    setPref("translate.engineType", selected);
+    setPref("translate.engineConfirmed", true);
+    var status = $("wenxianyidu-pref-connection-status");
+    if (status) status.textContent = selected === "mtranserver" ? "已选择离线引擎，请先点击“准备离线翻译”，就绪后返回论文翻译。" : "已选择当前引擎，可返回论文翻译；自有接口建议先测试连接。";
+  }
 })();

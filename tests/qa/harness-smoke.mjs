@@ -30,9 +30,9 @@ async function check(name, fn) {
 // ── Zotero mock ──
 await check("prefs: load + read + write", () => {
   const z = createZoteroMock({ prefs: { "translate.enabled": true, "translate.maxChars": 100 } });
-  assert.equal(z.Zotero.Prefs.get("extensions.zotero.ztransplit.translate.enabled"), true);
-  z.Zotero.Prefs.set("extensions.zotero.ztransplit.translate.auto", true);
-  assert.equal(z.Zotero.Prefs.get("extensions.zotero.ztransplit.translate.auto"), true);
+  assert.equal(z.Zotero.Prefs.get("extensions.zotero.wenxianyidu.translate.enabled"), true);
+  z.Zotero.Prefs.set("extensions.zotero.wenxianyidu.translate.auto", true);
+  assert.equal(z.Zotero.Prefs.get("extensions.zotero.wenxianyidu.translate.auto"), true);
   assert.equal(z.prefs.writes.length, 1);
 });
 
@@ -75,8 +75,8 @@ await check("PDFTranslate toggleable (present / absent)", async () => {
 
 await check("ItemPaneManager.registerSection spy records config", () => {
   const z = createZoteroMock();
-  const id = z.Zotero.ItemPaneManager.registerSection({ paneID: "ztransplit-translate" });
-  assert.equal(id, "ztransplit-translate");
+  const id = z.Zotero.ItemPaneManager.registerSection({ paneID: "wenxianyidu-translate" });
+  assert.equal(id, "wenxianyidu-translate");
   assert.equal(z.registeredPanes.length, 1);
   assert.equal(z.registeredPanes[0].header, undefined);
 });

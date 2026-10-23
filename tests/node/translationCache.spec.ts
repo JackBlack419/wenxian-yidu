@@ -26,7 +26,7 @@ import { installIOUTilsShim, uninstallIOUTilsShim } from "./helpers/ioutils-shim
 let tmp: string;
 
 beforeEach(() => {
-  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ztransplit-cache-"));
+  tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wenxianyidu-cache-"));
   installIOUTilsShim();
   setCacheDirForTests(tmp);
 });
@@ -72,7 +72,7 @@ describe("translationCache storage", () => {
 
   it("treats corrupt files as a plain miss", async () => {
     const key = (await cacheKey(ID, "auto", "zh-CN", "corrupt")) as string;
-    const file = path.join(tmp, "ztransplit/translation-cache/v1", key.slice(0, 2), `${key}.json`);
+    const file = path.join(tmp, "wenxianyidu/translation-cache/v1", key.slice(0, 2), `${key}.json`);
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, "{ not json");
     const got = await getCachedTranslations([key]);
@@ -87,7 +87,7 @@ describe("translationCache storage", () => {
       await putCachedTranslation(ID, "auto", "zh-CN", `paragraph ${i}`, `译 ${i}`);
     }
     // Nudge usedAt apart.
-    const root = path.join(tmp, "ztransplit/translation-cache/v1");
+    const root = path.join(tmp, "wenxianyidu/translation-cache/v1");
     let n = 0;
     for (const bucket of fs.readdirSync(root)) {
       for (const file of fs.readdirSync(path.join(root, bucket))) {

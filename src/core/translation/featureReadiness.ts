@@ -29,7 +29,7 @@ import { validatePromptTemplate } from "./promptTemplate";
 
 export interface TranslationReadinessStep {
   prefKey: string;
-  /** Fluent message id (no `ztransplit-` prefix) describing the gap. */
+  /** Fluent message id (no `wenxianyidu-` prefix) describing the gap. */
   reasonKey: string;
 }
 
@@ -67,10 +67,25 @@ function hasPDFTranslatePlugin(): boolean {
 export function checkTranslationReadiness(
   getPref: PrefReader = getPrefDynamic,
 ): TranslationReadiness {
-  const engine = prefValue(getPref, "translate.engineType") || "google";
+  const engine = prefValue(getPref, "translate.engineType") || "bing-web";
   const missing: TranslationReadinessStep[] = [];
 
   switch (engine) {
+    case "mtranserver":
+      return { ready: true, missing: [] };
+    case "youdao":
+      return { ready: true, missing: [] };
+    case "youdao-official": {
+      for (const key of ["translate.youdaoOfficial.appKey", "translate.youdaoOfficial.appSecret"]) {
+        if (!prefValue(getPref, key)) missing.push({ prefKey: key, reasonKey: "readiness-reason-engine-key" });
+      }
+      return { ready: missing.length === 0, missing };
+    }
+    case "niutrans": {
+      const key = "translate.niutrans.apiKey";
+      if (!prefValue(getPref, key)) missing.push({ prefKey: key, reasonKey: "readiness-reason-engine-key" });
+      return { ready: missing.length === 0, missing };
+    }
     case "google":
       // Default engine: the keyless free endpoint (with keyless Bing web
       // fallback) needs no configuration; the optional API key only upgrades it.
@@ -135,20 +150,7 @@ export function checkTranslationReadiness(
       }
       return { ready: missing.length === 0, missing };
     default:
-      // Unknown engine id — treat it like the custom engine (the dispatcher's
-      // fallback) and ask for its credentials, which is the actionable gap.
-      if (!prefValue(getPref, "translate.custom.apiUrl")) {
-        missing.push({
-          prefKey: "translate.custom.apiUrl",
-          reasonKey: "readiness-reason-engine-url",
-        });
-      }
-      if (!prefValue(getPref, "translate.custom.apiKey")) {
-        missing.push({
-          prefKey: "translate.custom.apiKey",
-          reasonKey: "readiness-reason-engine-key",
-        });
-      }
-      return { ready: missing.length === 0, missing };
+      // Corrupt/retired ids must never silently invoke a configured paid API.
+      return { ready: false, missing: [{ prefKey: "translate.engineType", reasonKey: "readiness-reason-unknown" }] };
   }
 }

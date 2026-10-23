@@ -10,7 +10,7 @@
  *   6. getJarPath 端到端（精简版打包安装）：XPI 无内置 jar → 下载兜底生效，
  *      会话备忘命中；下载失败时回退原路径且会话内不再重试。
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import {
@@ -100,11 +100,11 @@ class FakeFS {
 // ─── 夹具与宿主桩 ────────────────────────────────────────────────
 
 const DATA_DIR = "D:\\ZoteroData";
-const LIB_DIR = DATA_DIR + "\\ztransplit\\lib";
+const LIB_DIR = DATA_DIR + "\\wenxianyidu\\lib";
 const PROFILE = "C:\\Users\\tester\\profile";
 const EXT_DIR = PROFILE + "\\extensions";
-const XPI_PATH = EXT_DIR + "\\ztransplit@zotero.org.xpi";
-const ADDON_ID = "ztransplit@zotero.org";
+const XPI_PATH = EXT_DIR + "\\wenxianyidu@wenxianyidu.local.xpi";
+const ADDON_ID = "wenxianyidu@wenxianyidu.local";
 const TMP_DIR = "C:\\Temp";
 
 const INNER_JAR = new Uint8Array([0x50, 0x4b, 9, 9, 1, 2, 3, 4]);
@@ -382,7 +382,7 @@ describe("buildSources", () => {
   });
 
   it("非 opendataloader 构件没有公开来源", () => {
-    expect(buildSources({ ...META, artifact: "org.ztransplit:region-text-remover:1.0.0" })).toEqual(
+    expect(buildSources({ ...META, artifact: "org.wenxianyidu:region-text-remover:1.0.0" })).toEqual(
       [],
     );
   });
@@ -464,7 +464,14 @@ describe("downloadPinnedJar", () => {
         opens: 0,
       },
     ];
-    const out = await downloadPinnedJar(META, paths);
+    const firstProgress = vi.fn(), joinedProgress = vi.fn();
+    const [out, joined] = await Promise.all([
+      downloadPinnedJar(META, paths, firstProgress),
+      downloadPinnedJar(META, paths, joinedProgress),
+    ]);
+    expect(joined).toBe(out);
+    expect(firstProgress).toHaveBeenLastCalledWith({ phase: "done", percent: 100 });
+    expect(joinedProgress).toHaveBeenLastCalledWith({ phase: "done", percent: 100 });
     expect(out).toBe(paths.target);
     expect([...fs.read(paths.target)]).toEqual([...INNER_JAR]);
     const downloads = httpCalls.filter((c) => c.kind === "download");
@@ -508,9 +515,11 @@ describe("downloadPinnedJar", () => {
 
   it("全部镜像不可达时拒绝并给出明确错误", async () => {
     installMirrorRoutes({ aliyun: null, tuna: null, pypi: null });
-    await expect(downloadPinnedJar(META, paths)).rejects.toThrow(
+    const progress = vi.fn();
+    await expect(downloadPinnedJar(META, paths, progress)).rejects.toThrow(
       /no mirror reachable/,
     );
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ phase: "failed" }));
   });
 
   it("没有固定指纹时拒绝下载", async () => {
