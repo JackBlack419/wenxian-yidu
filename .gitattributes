@@ -1,0 +1,4 @@
+# Provenance hashes cover exact bytes; do not rewrite these assets on checkout.
+/addon/content/offline/* -text
+*.jar -text
+*.png -text
